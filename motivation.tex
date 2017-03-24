@@ -1,0 +1,30 @@
+Looking at system designs towards Exascale~\cite{top500}, one will not hesitate to predict that future systems will be based on more powerful compute nodes rather than more nodes~\cite{Shalf:exascaleChallenges}.  
+An inevitable consequence of this design trend is that node architecture will be more complex.
+Indeed, it is common to see traditional multi-core CPUs augmented with multiple high-end graphics cards such as NVIDIA's GPUs or Intel's first generation Xeon Phi coprocessors (KNC).
+Hybrid programming is challenging~\cite{exascaleRoadMap}, mainly because realizing high performance and scalability on accelerators is difficult.
+Even when the application performs well on accelerator, load imbalance arises since CPU and accelerators run at different rates.
+Beside the problems above, the programmer has to handle the communication between CPU and accelerators via the PCIe connection (see Fig.~\ref{fig:sysArch}).
+To avoid these problems, compute nodes can be based on stand-alone many-core processors such as the Intel's second generation Xeon Phi processor (KNL).
+However, applications consisting of both control and data parallelisms may not suit well to such homogeneous design.
+In addition, realizing expected performance on stand-alone many-core processors also requires expert programming skills.
+
+
+
+\begin{figure}[htb]
+\centering
+\begin{subfigure}[b]{0.22\textwidth}
+\includegraphics[width=\textwidth]{figures/SMs.pdf}
+\caption{A GPUs with 4 SMs}
+\label{SMs}
+\end{subfigure}
+\begin{subfigure}[b]{0.2\textwidth}
+\includegraphics[width=\textwidth]{figures/host_accelerator.pdf}
+\caption{Host with accelerators}
+\label{hybrid}
+\end{subfigure}
+\caption{A hybrid node design}
+\label{fig:sysArch}
+\end{figure}
+
+
+In this paper, we focus on tackling challenges associated with the hybrid host-accelerator node design, though our solution can also support the homogeneous case.
