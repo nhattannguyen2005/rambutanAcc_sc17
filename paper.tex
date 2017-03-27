@@ -43,8 +43,8 @@
 }
 
 % Copyright
-%\setcopyright{none}
-\setcopyright{acmcopyright}
+\setcopyright{none}
+%\setcopyright{acmcopyright}
 %\setcopyright{acmlicensed}
 %\setcopyright{rightsretained}
 %\setcopyright{usgov}
@@ -52,10 +52,8 @@
 %\setcopyright{cagov}
 %\setcopyright{cagovmixed}
 
-
 \begin{document}
-\title{RambutanAcc: a Dataflow Runtime System for Accelerator-based Clusters}
-
+\title{Exploiting Task Parallelism at Multiple Hardware Levels of an Accelerator-based Cluster}
 
 %\author{
 %Tan Nguyen,
@@ -67,18 +65,8 @@
 %Lawrence Berkeley National Laboratory, USA\\
 %{\small \{tannguyen, jdbachan, balelbach, swwilliams, jshalf, ddonofrio, cychan\}@lbl.gov}}
 
-
 \begin{abstract}
-Recently heterogeneous node architectures have gained traction in HPC.
-Systems equipped with accelerators each having thousands of cores are increasingly commonplace.
-However, such architectural design results in many challenging problems.
-For example, scaling a kernel to all the cores of an accelerator is not usually a trivial task.
-In addition, masking communication overheads between the host and accelerator as well as among accelerators under useful computations requires an excessive amount of programming effort, and this optimization also complicates the application code.
-In this paper, we present a task-based programming model that abstracts away many hardware details associated with sophisticated architectures such as GPUs.
-We also develop a runtime system that can schedule fine-grained tasks on portions of an accelerator, increasing performance and scalability.
-The runtime also hides communication costs automatically.
-Experimental evaluations on 3 benchmarks representing different application motifs show significant performance gains at very modest programming cost.
-These promising results can lead to special interests in the HPC community in tuning libraries such as cuSPARSE for co-running routines on a GPUs.
+Recently heterogeneous architectures have gained traction in HPC. Systems with deep and complex hardware hierarchy and equipped with accelerators each having thousands of cores are increasingly commonplace. On such systems, learning what the application is capable of for the performance optimization purpose is extremely challenging. This paper addresses this non-trivial problem by answering questions such as how many accelerator cores a kernel can scale to, how an irregular application behaves under load balancing granularities, and whether an application benefits from masking/avoiding communication overheads. To this end, we present a solution based on task parallelism, abstracting away many hardware details associated with sophisticated accelerator architectures such as GPUs. We also develop RambutanAcc, a runtime system that can schedule tasks on various hardware levels, ranging from GPU's SMs to compute nodes of a cluster. Experiments on 4 HPC benchmarks show that the flexibility in scheduling tasks results in significant performance gains. 
 \end{abstract}
 
 \maketitle

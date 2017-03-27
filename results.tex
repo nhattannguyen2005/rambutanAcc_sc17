@@ -1,6 +1,23 @@
-\subsection{Applications}
-In this section, we evaluate the performance of the runtime system using benchmarks taken from 3 HPC dwarfs: Sparse Cholesky Factorization (Sparse Linear Algebra), 2.5D Cannon's Matrix Multiplication (Dense Linear Algebra), and 3D Stencil (Structured Grids).
-For each application, we develop multiple code variants to evaluate individual components of the runtime on GPUs.
+\subsection{Testbed}
+In this section, we employ RambutanAcc to study the impact of various code optimizations at different hardware levels of a GPU cluster.
+Since an application generally benefits from only a subset of these optimizations, we need more than 1 application.
+To this end, we take 4 benchmarks commonly used in Science and Engineering: sparse cholesky factorization, a Machine Learning based face recognition code, 2.5D Cannon's Matrix Multiplication, and 3D Stencil.
+When studying optimizations on a single GPU, to have apples-to-apples comparisons we always use our own CUDA kernels in stead of 3rd party implementations (e.g. cuSPARSE). 
+In particular, for Sparse Cholesky Factorization, we develop our own CUDA kernels for $C = \alpha* A * B + \beta C$ where either A, B, and C are all in the {\em sparse} form or A is dense and B and C are sparse.
+In these kernels, we perform many optimization techniques such as memory coalescing and spatial tiling.
+We also employ a warp based thread reduction implementation that minimizes memory accesses. 
+For studies at higher hardware levels, we use vendor provided kernels as much as possible.
+For example, in  2.5D Cannon we use the cuBLAS's {\em dgemm} and {\em daxpy} implementations included in the NVIDIA toolkit to perform local matrix multiplication.
+
+For node level optimizations (on single and multiple GPUs of the same compute node), we use up to 3 K80 GPUs.
+A K80 GPU pairs 2 GPUs cards each having 2496 CUDA cores organized into 13 SMs.
+The whole K80 GPUs is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
+For cluster level optimizations, we run code on K20 GPUs on Titan.
+We use the nvcc compiler version 7.0 and sm\_35 capability for CUDA codes and Intel compiler for codes running on the host.
+We use GASNet for communication among GPUs. 
+
+
+\subsection{Scheduling tasks on SMs of a GPU}
 
 \subsubsection{Sparse Cholesky Factorization}
 Sparse Cholesky Factorization A= $LL^T$, where A is a sparse and symmetric positive-definite matrix,
@@ -18,32 +35,118 @@ The compute-intensive {\em update} kernel is executed on GPUs workers.
 
 \begin{figure}[htb]
 \centering
-\includegraphics[width=.4\textwidth]{figures/cholesky.pdf}
+\includegraphics[width=.3\textwidth]{figures/cholesky.pdf}
 \caption{Cholesky factorization DAG consisting of 3 types of tasks: F (Factor), S (Solve), U (update). Each task is associated with a partition of the input matrix called {\em tile}. Arrows presesent data dependencies between tasks of different types or of the same task type but on different tiles.}
 \label{fig:cholesky}
 \end{figure}
 
 
-\subsubsection{Communication Avoiding Matrix Multiplication}
-Although sparse representations are widely used in practice, dense matrix operations also have a significant share in many scientific and engineering areas.
-As a result, we employ a dense matrix multiplication operation $C = \alpha* A * B + \beta C$ to evaluate our runtime.
-This is a compute bound application, and GPUs architecture is very well suited for the computation. 
-There are many algorithms for the matrix multiply operation, and we use a well-known extension of the standard 2D Cannon's algorithm called {\em Communication Avoiding} AKA 2.5D Cannon~\cite{25Dcannon}. 
-Under the original 2D Cannon's algorithm, the available tasks are organized into a {\em T=PxP} mesh, partitioning each of the 3 matrices A, B, and C into blocks.
-These partitions are first aligned using a skewing operation.
-The algorithm then performs P computation steps accumulating the C partition using the rotated A and B partitions.
-The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
-The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
+An interesting path to explore is the tradeoff between coarse and fine-grained scheduling policies.  
+For sparse cholesky, the matrix is represented by many small CSC tiles.
+Thus, even a small problem size can result in many tasks.
+Fig.~\ref{fig:coarseFine} shows results of sparse cholesky under two scheduling policies.
+It can be seen that fine-grained scheduling policy outperforms the coarse-grained one.
+This can be explained as follows.
+Each CSC tile is very small (e.g. 32x32), making it hard to map computations efficiently to many CUDA cores.
+Thus, it may not be posible to scale a task to all available SMs of a GPUs.
+We observe that for many input matrices tasks run more efficiently after reducing the number of SMs per worker by a factor of 2 or 4.
+Since there may have many tasks that can be runnable at a time, the scheduler can keep all SMs busy at very small overhead.
+Fig~\ref{fig:nWorkers} shows the optimal number of workers on a K80 GPUs for Sparse Cholesky Factorization when the degree of sparsity of the input matrix varies.
+If the sparse matrix is filled with many tasks we have more parallelism, allowing us to configure the GPUs with more workers.
 
+The lesson learn from this study is that fine-grained scheduling can be very helpful if we have a DAG with many small tasks, which can not run well on the whole GPUs.
+This is an important observation since sparse representation is very common in practice.
+{\em RambutanAcc} runtime supports fine-grained task scheduling, a simple yet powerful solution to this problem.
+The programmer can obtain high compute throughput on GPUs without complicating the application algorithm.
+
+\begin{figure}[htb]
+\centering
+\begin{subfigure}{0.23\textwidth}
+\includegraphics[width=\textwidth]{figures/choleskyScheResults.pdf}
+\caption{Tile size 32x32}
+\label{choleskySche}
+\end{subfigure}
+\begin{subfigure}{0.23\textwidth}
+\includegraphics[width=\textwidth]{figures/nWorkers.pdf}
+\caption{The optimal number of workers/GPUs}
+\label{fig:nWorkers}
+\end{subfigure}
+\caption{Coarse v.s. fine-grained Scheduling}
+\label{fig:coarseFine}
+\end{figure}
+
+
+\subsubsection{Viola-Jones Face Recognition}
+We next study the impact of dynamic task scheduling in balancing the workload among SMs of a GPU.
+For this study we use the Viola-Jones face detection kernel, an important module in many applications such as security surveillance.
+The Viola-Jones face detection algorithm detects faces by scanning a regtangular window of pixels over the image where it looks for features of a human face. 
+If a window contains a significant number of these features, it is considered to be a face. 
+Since face size varies, the window is scaled a number of times and the scanning process is repeated. 
+To reduce the number of features that each window needs to check, the window passes through a number of different stages. 
+Early stages have fewer features to check and are easier to pass whereas later stages have more features and are more selective. 
+At each stage, the calculations of features for that stage are accumulated and, if this accumulated value does not pass the threshold, the stage is failed and the current window is considered to not contain a face. 
+
+For this application, it is straightforward to exploit parallelism among search windows.
+Each CUDA thread block is responsible for a fixed number of windows, which will be further distributed to threads within the thread block.
+We call this code variant {\em CUDA-Basic}.
+Since the number of instructions per window depends on the input, the impact of thread divergion is expected to be significant.
+Thus, we also employ a {\em CUDA-Static Warp Scheduling} version which allows 32 threads in a warp to share a window (and thus they perform the same number of instructions).
+Porting this code on RambutanAcc, we expect to improve the performance further by balancing the workload among these warps.
+Finally, we run a hand-optimized code variant, which embeds the task scheduler into the kernel code.
+This code has all the capabilities that RambutanAcc can, but at lower cost since the task scheduler is specialized and runs on the GPU.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.35\textwidth]{figures/faceRecognition.pdf}
+\caption{Balance the face searching}
+\label{faceRecognition}
+\end{figure}
+
+Fig.~\ref{faceRecognition} shows the performance of all code variants.
+{\em CUDA-Basic} performs poorly as expected.
+Under this straightforward strategy, only one or a few threads among 32 threads of the same warp reach to late stages while the rest stay idle.
+This explains why {\em CUDA-Static Warp Scheduling} improves the performance significantly.
+However, there remains significant load imbalance among warps.
+With RambutanAcc, windows are distributed to workers dynamically.
+Specifically, we configure the runtime with 26 workers (2 workers per SM), each a CUDA thread block. 
+The scheduler running on host keeps assigning blocks of windows to these workers.
+In order to hide the scheduling latency, we configure the task buffer of each worker with multiple slots.
+While the worker is processing the current window block, the scheduler can offload another block to the remaining slots.
+In this experiment, each block takes about 50 $\mu$s to finish, whereas the offloading cost is around 10 $\mu$s.
+Thus, configuring the task buffer with 2 slots is sufficient.
+Fig.~\ref{faceRecognition} shows that RambutanAcc speeds up {\em CUDA-Static Warp Scheduling} by 1.35x.
+All the performance improvement can be attributed to the capability of balancing computationgs among SMs of the GPU.
+The {\em CUDA-Hand Optimized} version runs even faster.
+The additional performance improvement is due to reducing scheduling overhead by embedding the scheduler to the application source code.
+
+
+\subsection{Scheduling tasks on GPUs of the same node}
+
+\subsubsection{3D Stencil}
+On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equation in 3 dimensions.
+{\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from 6 nearest neighbors.
+The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
+In particular, each task is associated with a data partition with up to 6 ghost cells.
+A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost cells from neighboring tasks.
+3D stencil is a memory bandwidth bound application. 
+Thus using GPUs can boost up the performance significantly.
+It is interesting to know if {\em RambutanAcc} can improve the performance further by  hiding communication overheads.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/stencil_tida.pdf}
+\caption{Strong scaling study on a single compute node consisting of 3 K80s (6 GPUs). Problem size $512^3$.}
+\label{stencil_onnode}
+\end{figure}
 
 \begin{figure*}[htb]
 \centering
-\begin{subfigure}[b]{0.4\textwidth}
+\begin{subfigure}[b]{0.45\textwidth}
 \includegraphics[width=\textwidth]{figures/cannon0.pdf}
 \caption{A and B dependencies on each replication layer}
 \label{deps}
 \end{subfigure}
-\begin{subfigure}[b]{0.4\textwidth}
+\begin{subfigure}[b]{0.37\textwidth}
 \includegraphics[width=\textwidth]{figures/cannon1.pdf}
 \caption{Results are reduced to the original layer}
 \label{dataspace}
@@ -55,101 +158,30 @@ Fig.~\ref{deps} shows 2 subsets of the graph to illustrate 2 types of data depen
 \label{fig:25DCannon}
 \end{figure*}
 
-
-\subsubsection{3D Stencil}
-The last application is {\em 3D Stencil}, an iterative solver for Laplace's equation in 3 dimensions.
-{\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from 6 nearest neighbors.
-The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
-In particular, each task is associated with a data partition with up to 6 ghost cells.
-A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost cells from neighboring tasks.
-3D stencil is a memory bandwidth bound application. 
-Thus using GPUs can boost up the performance significantly.
-It is interesting to know if {\em RambutanAcc} can improve the performance further by  hiding communication overheads.
-
-
-\subsection{System Specifications}
-We evaluate the {\em RambutanAcc} runtime on Comet, a GPUs cluster based on Haswell CPU and K80 GPUs and located at the San Diego Supercomputer Center (SDSC).
-A K80 GPUs pairs 2 GPUs cards each having 2496 CUDA cores organized into 13 SMs.
-The whole K80 GPUs is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
-Compute nodes on Comet are connected via Mellanox FDR Infiniband interconnects.
-We use the nvcc compiler version 7.0 and sm\_35 capability for CUDA codes and Intel compiler for codes running on the host.
-We use GASNet for communication among GPUs. 
+\subsubsection{2.5D Cannon Matrix Multiply}
+Although sparse representations are widely used in practice, dense matrix operations also have a significant share in many scientific and engineering areas.
+As a result, we employ a dense matrix multiplication operation $C = \alpha* A * B + \beta C$ to evaluate our runtime.
+This is a compute bound application, and GPUs architecture is very well suited for the computation. 
+There are many algorithms for the matrix multiply operation, and we use a well-known extension of the standard 2D Cannon's algorithm called {\em Communication Avoiding} AKA 2.5D Cannon~\cite{25Dcannon}. 
+Under the original 2D Cannon's algorithm, the available tasks are organized into a {\em T=PxP} mesh, partitioning each of the 3 matrices A, B, and C into blocks.
+These partitions are first aligned using a skewing operation.
+The algorithm then performs P computation steps accumulating the C partition using the rotated A and B partitions.
+The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
+The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
 
 
-\subsection{CUDA kernels}
-When evaluating the fine-grained scheduling support, to have an apples-to-apples comparison we always use our own CUDA kernels for both coarse and fine-grained scheduling policies.
-In these kernels, we perform many optimization techniques such as memory coalescing and spatial tiling using shared memory and register.
-For other tests, we use both self developed and vendor provided kernels.
-In particular, for Sparse Cholesky Factorization, we develop our own CUDA kernels since there is a routine that has not been provided by standard libraries such as cuSPARSE.
-That is, $C = \alpha* A * B + \beta C$ where A, B, and C are all in the {\em sparse} form.
-For 2.5D Cannon, we use the cuBLAS's {\em dgemm} implementation included in the NVIDIA toolkit to perform local matrix multiplication.
-For 3D Stencil, we use a self-developed CUDA kernel to perform Jacobi sweeps.
-
-\subsection{Coarse v.s. fine-grained scheduling on GPUs}
-We first tune computational kernels on a single GPUs.
-An interesting path to explore is the tradeoff between coarse and fine-grained scheduling policies.  
-Here we use two opposite applications to observe the tradeoff.
-For sparse cholesky, the matrix is represented by many small CSC tiles.
-Thus, even a small problem size can result in many tasks.
-2.5D Cannon, however, is based on a coarse decomposition scheme.
-As a result, a data tile can be as large as the data partition assigned to a GPUs.
-Fig.~\ref{fig:coarseFine} shows results of sparse cholesky and 2.5D Cannon under two scheduling policies.
-It can be seen that on sparse cholesky fine-grained scheduling policy outperforms the coarse-grained one.
-This can be explained as follows.
-Each CSC tile is very small (e.g. 32x32), making it hard to map computations efficiently to many CUDA cores.
-Thus, it may not be posible to scale a task to all available SMs of a GPUs.
-We observe that for many input matrices tasks run more efficiently after reducing the number of SMs per worker by a factor of 2 or 4.
-Since there may have many tasks that can be runnable at a time, the scheduler can keep all SMs busy at very small overhead.
-Fig~\ref{fig:nWorkers} shows the optimal number of workers on a K80 GPUs for Sparse Cholesky Factorization when the degree of sparsity of the input matrix varies.
-If the sparse matrix is filled with many tasks we have more parallelism, allowing us to configure the GPUs with more workers.
-
-\begin{figure*}[htb]
-\centering
-\begin{subfigure}{0.29\textwidth}
-\includegraphics[width=\textwidth]{figures/choleskyScheResults.pdf}
-\caption{Tile size 32x32}
-\label{choleskySche}
-\end{subfigure}
-\begin{subfigure}{0.29\textwidth}
-\includegraphics[width=\textwidth]{figures/25DCannonScheResults.pdf}
-\caption{Tile size = problem size}
-\label{CannonSche}
-\end{subfigure}
-\begin{subfigure}{0.33\textwidth}
-\includegraphics[width=\textwidth]{figures/nWorkers.pdf}
-\caption{The optimal number of workers/GPUs}
-\label{fig:nWorkers}
-\end{subfigure}
-\caption{Coarse v.s. fine-grained Scheduling}
-\label{fig:coarseFine}
-\end{figure*}
-
-
-
-
-
-Unlike sparse cholesky, we do not see any performance benefit of fine-grained scheduling policy on 2.5D Cannon.
-Coarse grained policy even performs slightly better than fine-grained policy.
-This result is fairly easy to explain.
-Indeed, each 2.5D Cannon task performs many floating point operations due to large and dense data partitions.
-The result is that the CUDA kernel can be scaled to all available SMs of a GPUs without significant degradation in efficiency.
-The fine-grained scheduling policy requires many tasks to keep all SMs busy.
-Thus, we have to over-decompose tasks to obtain more parallelism.
-Unfortunately, over-decomposition incurs some overhead as we can see in Fig.~\ref{CannonSche}.
-We observe similar results with 3D Stencil.
-
-The lesson learn from this study is that fine-grained scheduling can be very helpful if we have a DAG with many small tasks, which can not run well on the whole GPUs.
-This is an important observation since sparse representation is very common in practice.
-{\em RambutanAcc} runtime supports fine-grained task scheduling, a simple yet powerful solution to this problem.
-The programmer can obtain high compute throughput on GPUs without complicating the application algorithm.
 
 \begin{figure}[htb]
 \centering
-\includegraphics[width=0.49\textwidth]{figures/stencil_tida.pdf}
-\caption{Weak scaling study on a single compute node consisting of 2 K80s (4 GPUs)}
-\label{stencil_onnode}
+\includegraphics[width=0.49\textwidth]{figures/cannon_tida.pdf}
+\caption{2.5 Cannon on 2 K80s (4 GPUs)}
+\label{cannin_onnode}
 \end{figure}
 
+
+
+
+\subsection{Scheduling tasks at the cluster level}
 
 \subsection{Communication hiding}
 We now extend the experiment to multiple GPUs.
