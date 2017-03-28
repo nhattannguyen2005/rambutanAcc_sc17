@@ -1,20 +1,20 @@
-The benefit of using a data-driven execution model on traditional multi-core processors has been recognized by the HPC community for years, e.g. Cilk/Cilk++ \cite{cilk,BlumofeJoKu95}, Charm/Charm++ \cite{charm++}, Tarragon/Bamboo \cite{cicotti11:dissertation,bamboo, bamboo-LU, bambooThesis}, DPLASMA\cite{dplasma,Bosilca:2012:DAGuE}, OMPSs \cite{ompss,nexus}, and Habanero-C MPI~\cite{Chatterjee:2013:HCMPI}.
+The benefit of using a data-driven execution model on traditional multi-core processors has been recognized by the HPC community for years, e.g. Cilk/Cilk++~\cite{cilk,BlumofeJoKu95}, Charm/Charm++~\cite{charm++}, Tarragon/Bamboo~\cite{cicotti11:dissertation,bamboo, bamboo-LU, bambooThesis}, DPLASMA\cite{dplasma,Bosilca:2012:DAGuE}, OMPSs~\cite{ompss,nexus}, and Habanero-C MPI~\cite{Chatterjee:2013:HCMPI}.
 However, the question of whether a task dependency graph program with many fine-grained tasks can run efficiently on an accelerator such as GPUs has not yet been thoroughly answered.
-As a result, many current runtimes for GPUs schedule each single task on the whole GPUs (e.g. Legion~\cite{legion} and CNC-HC \cite{cnc-hc}).
+As a result, many current runtimes for GPUs schedule each single task on the whole GPUs (e.g. Legion~\cite{legion} and CNC-HC~\cite{cnc-hc}).
 As the number of cores per accelerator increases quickly, this limitation puts the programmer under the pressure of optimizing their kernels so they can scale linearly as the accelerator architecture evolves.
 
 Recently more research has been focusing on launching a CUDA kernel on a portion of the GPUs.
-In \cite{fillNRetreat}, Wu et al. presented a technique called {\em fill and retreat}, which allows a CUDA kernel to run on a group of selected SMs.
+In~\cite{fillNRetreat}, Wu et al. presented a technique called {\em fill and retreat}, which allows a CUDA kernel to run on a group of selected SMs.
 With this technique the programmer can efficiently bundle multiple CUDA kernels to run on a single GPUs at a time.
-Abdelfattah et al. also used a similar technique to batch small CUDA kernels in a cholesky factorization program in order to improve the throughput \cite{batchedCholesky}.
+Abdelfattah et al. also used a similar technique to batch small CUDA kernels in a cholesky factorization program in order to improve the throughput~\cite{batchedCholesky}.
 Our solution relies on a task scheduler to factor the scheduling policy out of the application program.
 As a result, the programmer can take the benefit of fine-grained scheduling at a very small amount of programming cost.
 
 Multi-GPUs programming is also an important support because the memory capacity of each individual GPUs is very limited.
-There are MPI implementations that provide this support, e.g. MPI-ACC \cite{mpiacc, mpiacc1} and Mvapich \cite{mvapich2gpu}.
+There are MPI implementations that provide this support, e.g. MPI-ACC~\cite{mpiacc, mpiacc1} and Mvapich~\cite{mvapich2gpu}.
 However, with these tools the programmer has to explicitly move data.
 RambutanAcc provides a dataflow programming model that supports distributed-memory architectures, allowing the runtime to move data across memory address spaces transparently.
 In addition, the data movement is non-blocking and independent of computations, overlapping communication with computation.
 
 {\em RambutanAcc} is a general-purpose runtime system and programming model.
-Thus, it supports a wide range of applications, as opposed to other domain specific runtimes such as MAGMA~\cite{MAGMA}, Physics \cite{physics}, and Patus \cite{patus}.
+Thus, it supports a wide range of applications, as opposed to other domain-specific runtimes such as MAGMA~\cite{MAGMA}, Physics~\cite{physics}, and Patus~\cite{patus}.

@@ -52,6 +52,14 @@
 %\setcopyright{cagov}
 %\setcopyright{cagovmixed}
 
+\newcommand{\tanN}[1] {{\color{red}{TanN}}: {\color{red}{#1}}}
+\newcommand{\cyC}[1] {{\color{green}{CyC}}: {\color{green}{#1}}}
+\newcommand{\johnB}[1] {{\color{blue}{JohnB}}: {\color{blue}{#1}}}
+\newcommand{\bryceL}[1] {{\color{cyan}{BryceL}}: {\color{cyan}{#1}}}
+\newcommand{\samW}[1] {{\color{violet}{SamW}}: {\color{violet}{#1}}}
+\newcommand{\johnS}[1] {{\color{orange}{JohnS}}: {\color{organe}{#1}}}
+\newcommand{\daveD}[1] {{\color{purple}{DaveD}}: {\color{purple}{#1}}}
+
 \begin{document}
 \title{Exploiting Task Parallelism at Multiple Hardware Levels of an Accelerator-based Cluster}
 
@@ -66,7 +74,7 @@
 %{\small \{tannguyen, jdbachan, balelbach, swwilliams, jshalf, ddonofrio, cychan\}@lbl.gov}}
 
 \begin{abstract}
-Recently, heterogeneous architectures have gained traction in HPC. Systems with deep and complex hardware hierarchy and equipped with accelerators each having thousands of cores are increasingly commonplace. On such systems, learning what the application is capable of for the performance optimization purpose is extremely challenging. This paper addresses this non-trivial problem by answering questions such as how many accelerator cores a kernel can scale to, how an irregular application behaves under load balancing granularities, and whether an application benefits from masking/avoiding communication overheads. To this end, we present a solution based on task parallelism, abstracting away many hardware details associated with sophisticated accelerator architectures such as GPUs. We also develop RambutanAcc, a runtime system that can schedule tasks on various hardware levels, ranging from GPU's SMs to compute nodes of a cluster. Experiments on three HPC benchmarks show that the flexibility in scheduling tasks results in significant performance gains. 
+Recently, heterogeneous architectures have gained traction in HPC. Systems with deep and complex hardware hierarchy and equipped with accelerators each having thousands of cores are increasingly commonplace. On such systems, learning what the application is capable of for the performance optimization purpose is extremely challenging. This paper addresses this non-trivial problem by answering questions such as how many accelerator cores a kernel can scale to, how an irregular application behaves under load balancing granularities, and whether an application benefits from masking/avoiding communication overheads. To this end, we present a solution based on task parallelism, abstracting away many hardware details associated with sophisticated accelerator architectures such as GPUs. We also develop RambutanAcc, a runtime system that can schedule tasks on various hardware levels, ranging from GPU's SMs to compute nodes of a cluster. Experiments on three HPC benchmarks show that the flexibility in scheduling tasks results in significant performance gains. \samW{four HPC benchmarks???}
 \end{abstract}
 
 \maketitle

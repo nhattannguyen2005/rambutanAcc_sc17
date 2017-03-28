@@ -6,7 +6,7 @@ In this scenario, many runtime systems have been developed to aid the programmer
 However, current support for state-of-the-art accelerators is very limited, and there remain significant challenges, such as the development of programming abstractions and fine-grained scheduling mechanisms, as well as efficient communication overlap and dynamic load balancing.  
 
 To address these challenges, we present {\em RambutanAcc}, a task-based runtime for distributed-memory systems that can assist the programmer to increase performance on accelerator-based clusters with modest programming effort.
-{\em RambutanAcc} extends the programming interface of {\em Rambutan} \cite{rambutanWebsite}, which provides an interface to construct a fine-grain, dynamic dataflow graph that unfolds as the program executes. 
+{\em RambutanAcc} extends the programming interface of {\em Rambutan}~\cite{rambutanWebsite}, which provides an interface to construct a fine-grain, dynamic dataflow graph that unfolds as the program executes. 
 Each fine-grain task of a {\em RambutanAcc} graph is scheduled to run on a {\em worker}, which can be either a group of CPU cores, an accelerator, or a partition of an accelerator.
 \cyC{"group of accelerator cores" would be clearer than "a partition of an accelerator", which hasn't been defined yet}
 Tasks can execute as soon as their {\em true} data dependencies are satisfied, thus avoiding many types of over-synchronization present in other programming models (e.g. barrier, wait\_all, etc.).
@@ -32,7 +32,7 @@ This handler utilizes CUDA streams and works asynchronously with the persistent 
 For off-node requests, {\em RambutanAcc} uses GASNet~\cite{Bonachea:2002:gasnet}, a one-sided communication library % , to implement the communication handler.
 that provides non-blocking data transfer and low-latency signaling mechanisms. % , allowing inter-process communication to be overlapped with computations efficiently.
 
-We evaluate {\em RambutanAcc} on up to 16 K80 GPUs using three HPC benchmarks: Sparse Cholesky Factorization, Communication-Avoiding Cannon's Matrix Multiplication \cite{25Dcannon}, and a 3D Stencil algorithm.
+We evaluate {\em RambutanAcc} on up to 16 K80 GPUs using three HPC benchmarks: Sparse Cholesky Factorization, Communication-Avoiding Cannon's Matrix Multiplication~\cite{25Dcannon}, and a 3D Stencil algorithm.\samW{needs to be consistent with sec5... missing ML code}
 The results show that the performance improves significantly due to overlapping communication with computation.
 {\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
 In addition, for Sparse Cholesky Factorization, having multiple workers on a single GPUs allows compute throughput to be increased at low programming cost. 

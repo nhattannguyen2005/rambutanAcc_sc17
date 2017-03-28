@@ -10,7 +10,7 @@ For studies at higher hardware levels, we use vendor provided kernels as much as
 For example, in  2.5D Cannon we use the cuBLAS's {\em dgemm} and {\em daxpy} implementations included in the NVIDIA toolkit to perform local matrix multiplication.
 
 For node level optimizations (on single and multiple GPUs of the same compute node), we use up to three K80 GPUs.
-A K80 GPU pairs two GPU cards each having 2496 CUDA cores organized into 13 SMs.
+A K80 GPU pairs two GPU devices each having 2496 CUDA cores organized into 13 SMs.
 The whole K80-based system is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
 For cluster level optimizations, we run code on K20 GPUs on Titan.
 We use the nvcc compiler version 7.0 and sm\_35 capability for CUDA codes and the Intel compiler for codes running on the host.
@@ -42,7 +42,7 @@ The compute-intensive {\em update} kernel is executed on the GPU workers.
 
 
 An interesting path to explore is the tradeoff between coarse and fine-grained scheduling policies.  
-For sparse cholesky, the matrix is represented by many small CSC tiles.
+For sparse cholesky, the matrix is represented by many small CSC tiles.\samW{the previous sentence repeats the one}
 Thus, even a small problem size can result in many tasks.
 Fig.~\ref{fig:coarseFine} shows results of sparse cholesky under two scheduling policies.
 It can be seen that fine-grained scheduling policy outperforms the coarse-grained one.
@@ -71,12 +71,13 @@ The programmer can obtain high compute throughput on GPUs without complicating t
 \caption{The optimal number of workers/GPUs}
 \label{fig:nWorkers}
 \end{subfigure}
-\caption{Coarse v.s. fine-grained Scheduling}
+\caption{Coarse vs. fine-grained Scheduling\samW{note left vs. right;  for left, what is the sparsity???  where does the matrix come from???}}
 \label{fig:coarseFine}
 \end{figure}
 
 
 \subsubsection{Viola-Jones Face Recognition}
+\samW{is there a citation for this code/algorithm}
 We next study the impact of dynamic task scheduling in balancing the workload among SMs of a GPU.
 For this study we use the Viola-Jones face detection kernel, an important module in many applications such as security surveillance.
 The Viola-Jones face detection algorithm detects faces by scanning a regtangular window of pixels over the image where it looks for features of a human face. 
@@ -98,13 +99,13 @@ This code has all the capabilities that RambutanAcc can, but at lower cost since
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.35\textwidth]{figures/faceRecognition.pdf}
-\caption{Balance the face searching}
+\caption{Balance the face searching\samW{what is FPS?  I assume up is good... i.e. FPS is a throughput rather than time metric}}
 \label{faceRecognition}
 \end{figure}
 
 Fig.~\ref{faceRecognition} shows the performance of all code variants.
 {\em CUDA-Basic} performs poorly as expected.
-Under this straightforward strategy, only one or a few threads among 32 threads of the same warp reach to late stages while the rest stay idle.
+Under this straightforward strategy, only one or a few threads among 32 threads of the same warp reach to late stages while the rest stay idle.\samW{previous sentence is unclrear...  Are you saying the naive code has a thread divergence problem?}
 This explains why {\em CUDA-Static Warp Scheduling} improves the performance significantly.
 However, there remains significant load imbalance among warps.
 With RambutanAcc, windows are distributed to workers dynamically.
@@ -118,11 +119,13 @@ Fig.~\ref{faceRecognition} shows that RambutanAcc speeds up {\em CUDA-Static War
 All the performance improvement can be attributed to the capability of balancing computationgs among SMs of the GPU.
 The {\em CUDA-Hand Optimized} version runs even faster.
 The additional performance improvement is due to reducing scheduling overhead by embedding the scheduler to the application source code.
+\samW{where did the CUDA versions of the code come from?  Did you write them all?  if not, cite source}
 
 
 \subsection{Scheduling tasks on GPUs of the same node}
 
 \subsubsection{3D Stencil}
+\samW{3D stencil is an ill-defined term... is this a 7-point, constant coefficient laplacian?  Are you doing a smoother with a RHS?  are you assuming periodic BCs?  or constant(node/vertex centerd) boundaries?}
 On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equation in three dimensions.
 {\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from six nearest neighbors.
 The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
@@ -135,7 +138,7 @@ It is interesting to determine if {\em RambutanAcc} can improve the performance 
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.49\textwidth]{figures/stencil_tida.pdf}
-\caption{Strong scaling study on a single compute node consisting of three K80s (six GPU devices). Problem size $512^3$.}
+\caption{Strong scaling study on a single compute node consisting of three K80s (six GPU devices). Problem size $512^3$.\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}}
 \label{stencil_onnode}
 \end{figure}
 
@@ -211,7 +214,11 @@ Thus, the communication over computation ratio does not change much as the numbe
 \begin{figure*}[htb]
 \centering
 \includegraphics[width=0.9\textwidth]{figures/overlap.pdf}
-\caption{Hiding communication automatically via overlap}
+\caption{Hiding communication automatically via overlap
+\samW{How much potential was there for overlap in the first place?}
+%\samW{When strong scaling, there is a region where it might be viable.}
+%\samW{When weak scaling, you may always be outside the range where overlap is viable.}
+}
 \label{overlap}
 \end{figure*}
 
