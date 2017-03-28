@@ -1,17 +1,23 @@
-In this section, we present the {\em RambutanAcc's} task dependency graph representation (or task graph for short) followed by the execution model governing the execution of a task graph program.
+In this section, we present the {\em RambutanAcc's} task dependency graph programming model and its associated execution model.
 Our design goal is to keep the programming API as simple as possible.
 
 
 \subsection{Task and Data Spaces}
-Each {\em RambutanAcc} application works on a directed acyclic graph (DAG) in which vertices are {\em tasks} (see Fig.~\ref{fig:taskGraph}).
+Each {\em RambutanAcc} application works on a directed acyclic graph (DAG) in which vertices are {\em tasks} (see Fig.~\ref{fig:taskGraph}),
+and edges are data or control {\em dependencies}.
+{\em RambutanAcc} defines {\em }task spaces} and {\em data spaces}.
+A {\em task space} encapsulates the behavior of a class of tasks.
 A {\em task} is a sequence of statements.
-{\em Tasks} are atomic, meaning that when a task is scheduled it runs to completion.
+{\em Tasks} are atomic, in the sense that when a task is scheduled it runs to completion.
 {\em Tasks} are created and destroyed at runtime.
-{\em RambutanAcc} separates the task space from data space.
-The programmer defines an ownership function to map tasks to partitions of the data space.
-Each data partition is associated with an attribute called {\em locale}, which indicates the location of the data (e.g. in GPU's memory).
-Task and data do not have to reside in the same physical place, and it is the responsibility of the runtime to move required data to tasks.
-The programmer specifies task's inputs and outputs, which are data partitions.
+A {\em data space} encapsulates access and management of a class of data.
+\cyC{Prefer not to use the term "data partition"}
+% The programmer specifies task inputs and outputs, which are data partitions.
+The programmer specifies task inputs and outputs, which are named data parcels.
+Each parcel is associated with an attribute called {\em locale}, which indicates the location of the parcel (e.g. in GPU's memory).
+% The programmer defines an ownership function to map tasks to partitions of the data space.
+The programmer defines an ownership function to map tasks to locales.
+Tasks and data do not have to reside in the same physical place, and the runtime will automatically move required data to tasks.
 We next describe the full process of defining a task.
 
 
@@ -35,16 +41,15 @@ With this option, the task can invoke other functions without any special suppor
 
 
 \subsection{Execution model}
-Among tasks, there are ones that can run without any input from other tasks.
-These tasks are called {\em roots}.
+Tasks that can run without any input dependencies from other tasks are {\em roots} of the graph.
 In the task graph program described in Fig.~\ref{fig:taskGraph}, tasks ($<$0, 0$>$, $<$1, 0$>$, $<$2, 0$>$, and $<$3, 0$>$ are roots since at the first iteration no nearest neighbor update is required.
 Once a {\em root} task finishes its execution, output can be produced.
 Now the task notifies the runtime about the availability of the data so the runtime can create new tasks (even remote tasks) and fetch the just produced output data to their locations.
 As soon as the data required by a new task have been fetched, that task can become runnable.
 Runnable tasks will be scheduled to execute by {\em RambutanAcc} {\em workers}, which can be CPU cores, accelerator, or a portion of the accelerator.
 The runtime scheduler periodically checks the availability of {\em workers} to schedule tasks. 
-A {\em worker} can be configured with a task buffer having more than one slot so that the scheduler can assign tasks even when the {\em worker} is busy (pre-scheduled). 
-This capability allows tasks to be offloaded to {\em workers} on the accelerator at zero cost, since the time to move function arguments from host to accelerator can be overlapped with the execution of another task.
+A {\em worker} can be configured with a private task queue so that the scheduler can assign it new tasks even when the {\em worker} is already executing. 
+This capability allows tasks to be offloaded to {\em workers} on the accelerator at zero cost, since the time to move required data from host to accelerator can be overlapped with the execution of another task.
 
 A notable concern when programming on accelerators is that the DRAM capacity on accelerator is often modest compared to host DRAM.
 If this is the case, the programmer often decides to keep data on the host and stream only a portion of data to the accelerator at a time to compute before streaming the results back.
