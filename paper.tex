@@ -59,14 +59,14 @@
 %Tan Nguyen,
 %John Bachan,
 %Bryce Lelbach,
-%Sam Williams,
+%Samuel Williams,
 %John Shalf,
 %David Donofrio, and Cy Chan\\
 %Lawrence Berkeley National Laboratory, USA\\
 %{\small \{tannguyen, jdbachan, balelbach, swwilliams, jshalf, ddonofrio, cychan\}@lbl.gov}}
 
 \begin{abstract}
-Recently heterogeneous architectures have gained traction in HPC. Systems with deep and complex hardware hierarchy and equipped with accelerators each having thousands of cores are increasingly commonplace. On such systems, learning what the application is capable of for the performance optimization purpose is extremely challenging. This paper addresses this non-trivial problem by answering questions such as how many accelerator cores a kernel can scale to, how an irregular application behaves under load balancing granularities, and whether an application benefits from masking/avoiding communication overheads. To this end, we present a solution based on task parallelism, abstracting away many hardware details associated with sophisticated accelerator architectures such as GPUs. We also develop RambutanAcc, a runtime system that can schedule tasks on various hardware levels, ranging from GPU's SMs to compute nodes of a cluster. Experiments on 4 HPC benchmarks show that the flexibility in scheduling tasks results in significant performance gains. 
+Recently, heterogeneous architectures have gained traction in HPC. Systems with deep and complex hardware hierarchy and equipped with accelerators each having thousands of cores are increasingly commonplace. On such systems, learning what the application is capable of for the performance optimization purpose is extremely challenging. This paper addresses this non-trivial problem by answering questions such as how many accelerator cores a kernel can scale to, how an irregular application behaves under load balancing granularities, and whether an application benefits from masking/avoiding communication overheads. To this end, we present a solution based on task parallelism, abstracting away many hardware details associated with sophisticated accelerator architectures such as GPUs. We also develop RambutanAcc, a runtime system that can schedule tasks on various hardware levels, ranging from GPU's SMs to compute nodes of a cluster. Experiments on three HPC benchmarks show that the flexibility in scheduling tasks results in significant performance gains. 
 \end{abstract}
 
 \maketitle
@@ -100,15 +100,14 @@ Recently heterogeneous architectures have gained traction in HPC. Systems with d
 \label{sec:conclusion}
 \input{conclusion}
 
-
-\section*{Acknowledgment}
-All authors from LBNL were supported by the Office of Advanced Scientific Computing Research in the Department of Energy Office of Science under contract number DE-AC02-05CH11231.
-RambutanAcc and application codes were developed on TiDA, a workstation housed at LBNL.
-All GPUs on TiDA were provided by NVIDIA.
-Experiments were conducted on Comet at SDSC.
-We would like to thank Paul Hargrove for his great help on GASNet.
-We also thank Yifeng Cui for time allocations on the Comet system.
-Tan Nguyen was a fellow of the Vietnam Education Foundation while conducting this research.
+\section*{Acknowledgments}
+% DOUBLE BLIND
+%This material is based upon work supported by the Advanced Scientific Computing Research Program in the U.S. Department of Energy, Office of Science, under  Award Number DE-AC02-05CH11231.
+%RambutanAcc and application codes were developed on TiDA, a workstation housed at LBNL, with GPUs provided by NVIDIA.
+%Experiments were conducted on Comet at SDSC.
+%We would like to thank Paul Hargrove for his great help on GASNet.
+%We also thank Yifeng Cui for time allocations on the Comet system.
+%Tan Nguyen was a fellow of the Vietnam Education Foundation while conducting this research.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{ref} 
