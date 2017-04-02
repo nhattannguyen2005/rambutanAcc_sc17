@@ -135,12 +135,37 @@ A task can be run when the previous iteration on this data partition finishes an
 Thus using GPUs can boost up the performance significantly.
 It is interesting to determine if {\em RambutanAcc} can improve the performance further by  hiding communication overheads.
 
-\begin{figure}[htb]
+\begin{figure*}[htb]
+\begin{subfigure}[b]{0.47\textwidth}
 \centering
-\includegraphics[width=0.49\textwidth]{figures/stencil_tida.pdf}
-\caption{Strong scaling study on a single compute node consisting of three K80s (six GPU devices). Problem size $512^3$.\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}}
-\label{stencil_onnode}
-\end{figure}
+\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_tida.pdf}
+\caption{A compute node with 6 Kepler GPUs (3 K80 cards) connected via a shared PCIe bus}
+\label{stencil_single_node_tida}
+\end{subfigure}
+\begin{subfigure}[b]{0.47\textwidth}
+\centering
+\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_summit.pdf}
+\label{stencil_single_node_summit}
+\caption{A compute node with 4 Pascal (P100) GPUs. GPUs \#1 and \#2, \#3 and \#4 are paired togethor via an NVlink interconnect.}
+\end{subfigure}
+\caption{Strong scaling study on single compute nodes. Problem size $512^3$.
+%\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}
+}
+\end{figure*}
+
+
+
+
+\subsubsection{2.5D Cannon Matrix Multiply}
+Although sparse representations are widely used in practice, dense matrix operations also have a significant share in many scientific and engineering areas.
+As a result, we employ a dense matrix multiplication operation $C = \alpha* A * B + \beta C$ to evaluate our runtime.
+This is a compute bound application, and the GPU architecture is very well suited for the computation. 
+There are many algorithms for the matrix multiply operation, and we use a well-known extension of the standard 2D Cannon's algorithm called {\em Communication Avoiding} or 2.5D Cannon~\cite{25Dcannon}. 
+Under the original 2D Cannon's algorithm, the available tasks are organized into a {\em T=PxP} mesh, partitioning each of the three matrices A, B, and C into blocks.
+These partitions are first aligned using a skewing operation.
+The algorithm then performs P computation steps accumulating the C partition using the rotated A and B partitions.
+The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
+The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
 
 \begin{figure*}[htb]
 \centering
@@ -161,24 +186,12 @@ Fig.~\ref{deps} shows two subsets of the graph to illustrate two types of data d
 \label{fig:25DCannon}
 \end{figure*}
 
-\subsubsection{2.5D Cannon Matrix Multiply}
-Although sparse representations are widely used in practice, dense matrix operations also have a significant share in many scientific and engineering areas.
-As a result, we employ a dense matrix multiplication operation $C = \alpha* A * B + \beta C$ to evaluate our runtime.
-This is a compute bound application, and the GPU architecture is very well suited for the computation. 
-There are many algorithms for the matrix multiply operation, and we use a well-known extension of the standard 2D Cannon's algorithm called {\em Communication Avoiding} or 2.5D Cannon~\cite{25Dcannon}. 
-Under the original 2D Cannon's algorithm, the available tasks are organized into a {\em T=PxP} mesh, partitioning each of the three matrices A, B, and C into blocks.
-These partitions are first aligned using a skewing operation.
-The algorithm then performs P computation steps accumulating the C partition using the rotated A and B partitions.
-The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
-The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
-
-
 
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.49\textwidth]{figures/cannon_tida.pdf}
 \caption{2.5 Cannon on two K80s (four GPU devices)}
-\label{cannin_onnode}
+\label{cannon_onnode}
 \end{figure}
 
 
@@ -187,60 +200,70 @@ The algorithm broadcasts input data to layers in this dimension to compute the t
 \subsection{Scheduling tasks at the cluster level}
 %\samW{is this a missing subsection? or is communication hiding supposed to be a subsubsection???}
 
-\subsubsection{Communication hiding}
-We now extend the experiment to multiple GPUs.
-In this experiment, we evaluate the benefit of hiding the communication overheads among GPUs.
-To this end, we configure the runtime in two modes: {\em no overlap} and {\em overlap}.
-The former uses blocking CUDA memory copy routines to transfer data between host and GPUs while the latter uses non-blocking variants.
-Since the fine-grained scheduler is not compatible with blocking mode (the persistent kernel runs to completion while blocking routines can't proceed until all previously submitted CUDA kernels have completed), we use the coarse-grained scheduling policy for both the blocking and non-blocking modes.
-
-Fig.~\ref{overlap} shows results of three applications under two communication modes.
-In this study, we do not replicate the input matrices of the 2.5D Cannon's algorithm because the communication avoiding technique may interfere with the communication overlap.
-We will study this interference later in Sec~\ref{subsec:CAvsOlap}.
-It can be seen in Fig.~\ref{overlap} that on three applications {\em overlap} always outperforms {\em no overlap}.
-In Cholesky, we place data on the host and stream them to GPUs to perform the compute-intensive {\em update} kernel.
-Thus, even on one GPU, communication arises.
-\footnote{Although we do not show results of 2.5D Cannon and 3D Stencil on one GPU, it's worth noting that computing on one GPU doesn't incur communication cost since we initially place data on the GPU.
-As a result, we do not observe performance improvement when running these two applications on only one GPU.}
-On multiple GPUs, we realize notable performance improvement via overlapping communcation with computation.
-The overall time reduction is 10\% more or less.
-For Stencil, however, we see a higher speedup (up to 1.85$\times$) due to the following reason.
-At a small scale 1D decomposition works best since it does not require the costly packing and unpacking operations.
-However, with a 1D decomposition scheme the amount of communication does not decrease as the number of GPUs increases.
-Thus, the more GPUs the higher communication relative to computation, resulting in a better improvement due to overlap.
-Unlike 3D Stencil, experiments on the other two applications use a 2D decomposition scheme.
-Thus, the communication over computation ratio does not change much as the number of GPU increases.
-
-\begin{figure*}[htb]
-\centering
-\includegraphics[width=0.9\textwidth]{figures/overlap.pdf}
-\caption{Hiding communication automatically via overlap
-\samW{How much potential was there for overlap in the first place?}
-%\samW{When strong scaling, there is a region where it might be viable.}
-%\samW{When weak scaling, you may always be outside the range where overlap is viable.}
-}
-\label{overlap}
-\end{figure*}
 
 \begin{figure}[htb]
 \centering
-\includegraphics[width=0.49\textwidth]{figures/CA_4096.pdf}
-\caption{2.5D Cannon on 16 GPUs using small matrices (N=4096). The communication avoiding technique results in many task configurations. For good configurations (e.g. \{64, 4\}), there is not much room for the communication overlap. However, for poor configurations (e.g. \{1024, 4\}) the overlap technique does a good job in further increasing the performance}
-\label{CA_4096}
+\includegraphics[width=0.49\textwidth]{figures/stencil_multiple_nodes_summit.pdf}
+\caption{Stencil on multiple nodes of Summit}
+\label{stencil_multiple_nodes}
 \end{figure}
 
-\subsubsection{Interference between communication avoiding and hiding}
-\label{subsec:CAvsOlap}
-Now let's study the behavior of {\em overlap} when the communication avoiding technique is enabled.
-Fig.~\ref{CA_4096} shows the run time of the 2.5D Cannon program when performing matrix multiplication on 16 GPUs.
-We can see that replicating matrices substantially reduces the run time.
-Notable examples are  \{64, 4\} compared to \{64, 1\} and \{256, 4\} compared to \{256, 1\}.
-If most of the data communication can be avoided, there is not much left to hide.
-However, the number of these optimal replication configurations is very small compared to the combination of task and replication spaces.
-As a result, the programmer may need to brute force many potential configurations to find the best one.
-This requirement is costly and time consuming.
-Luckily the overlapping technique can work with communication avoiding within the same application.
-Thus, if the programmer does not pick the best replication configuration, he/she can rely on the communication overlap to realize comparable performance.
-For example, the {\em overlap} performance on configurations \{128, 2\}, \{256, 4\}, or the most wanted \{64, 1\} is  acceptable. 
-We can see that there are many of such configurations, allowing the programmer to guess one easily.
+
+
+%\subsubsection{Communication hiding}
+%We now extend the experiment to multiple GPUs.
+%In this experiment, we evaluate the benefit of hiding the communication overheads among GPUs.
+%To this end, we configure the runtime in two modes: {\em no overlap} and {\em overlap}.
+%The former uses blocking CUDA memory copy routines to transfer data between host and GPUs while the latter uses non-blocking variants.
+%Since the fine-grained scheduler is not compatible with blocking mode (the persistent kernel runs to completion while blocking routines can't proceed until all previously submitted CUDA kernels have completed), we use the coarse-grained scheduling policy for both the blocking and non-blocking modes.
+
+%Fig.~\ref{overlap} shows results of three applications under two communication modes.
+%In this study, we do not replicate the input matrices of the 2.5D Cannon's algorithm because the communication avoiding technique may interfere with the communication overlap.
+%We will study this interference later in Sec~\ref{subsec:CAvsOlap}.
+%It can be seen in Fig.~\ref{overlap} that on three applications {\em overlap} always outperforms {\em no overlap}.
+%In Cholesky, we place data on the host and stream them to GPUs to perform the compute-intensive {\em update} kernel.
+%Thus, even on one GPU, communication arises.
+%\footnote{Although we do not show results of 2.5D Cannon and 3D Stencil on one GPU, it's worth noting that computing on one GPU doesn't incur communication cost since we initially place data on the GPU.
+%As a result, we do not observe performance improvement when running these two applications on only one GPU.}
+%On multiple GPUs, we realize notable performance improvement via overlapping communcation with computation.
+%The overall time reduction is 10\% more or less.
+%For Stencil, however, we see a higher speedup (up to 1.85$\times$) due to the following reason.
+%At a small scale 1D decomposition works best since it does not require the costly packing and unpacking operations.
+%However, with a 1D decomposition scheme the amount of communication does not decrease as the number of GPUs increases.
+%Thus, the more GPUs the higher communication relative to computation, resulting in a better improvement due to overlap.
+%Unlike 3D Stencil, experiments on the other two applications use a 2D decomposition scheme.
+%Thus, the communication over computation ratio does not change much as the number of GPU increases.
+
+%\begin{figure*}[htb]
+%\centering
+%\includegraphics[width=0.9\textwidth]{figures/overlap.pdf}
+%\caption{Hiding communication automatically via overlap
+%\samW{How much potential was there for overlap in the first place?}
+%%\samW{When strong scaling, there is a region where it might be viable.}
+%\samW{When weak scaling, you may always be outside the range where overlap is viable.}
+%}
+%\label{overlap}
+%\end{figure*}
+
+%\begin{figure}[htb]
+%\centering
+%\includegraphics[width=0.49\textwidth]{figures/CA_4096.pdf}
+%\caption{2.5D Cannon on 16 GPUs using small matrices (N=4096). The communication avoiding technique results in many task configurations. For good configurations (e.g. \{64, 4\}), there is not much room for the communication overlap. However, for poor configurations (e.g. \{1024, 4\}) the overlap technique does a good job in further increasing the performance}
+%\label{CA_4096}
+%\end{figure}
+
+%\subsubsection{Interference between communication avoiding and hiding}
+%\label{subsec:CAvsOlap}
+%Now let's study the behavior of {\em overlap} when the communication avoiding technique is enabled.
+%Fig.~\ref{CA_4096} shows the run time of the 2.5D Cannon program when performing matrix multiplication on 16 GPUs.
+%We can see that replicating matrices substantially reduces the run time.
+%Notable examples are  \{64, 4\} compared to \{64, 1\} and \{256, 4\} compared to \{256, 1\}.
+%If most of the data communication can be avoided, there is not much left to hide.
+%However, the number of these optimal replication configurations is very small compared to the combination of task and replication spaces.
+%As a result, the programmer may need to brute force many potential configurations to find the best one.
+%This requirement is costly and time consuming.
+%Luckily the overlapping technique can work with communication avoiding within the same application.
+%Thus, if the programmer does not pick the best replication configuration, he/she can rely on the communication overlap to realize comparable performance.
+%For example, the {\em overlap} performance on configurations \{128, 2\}, \{256, 4\}, or the most wanted \{64, 1\} is  acceptable. 
+%We can see that there are many of such configurations, allowing the programmer to guess one easily.
 
