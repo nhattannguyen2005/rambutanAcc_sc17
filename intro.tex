@@ -1,18 +1,23 @@
 It is very likely that exascale systems will be armed with powerful accelerators and/or many-core processors~\cite{ASCR/Exascale/Lethin, exascaleRoadMap}.
 On such systems, performance will heavily depend on the efficient utilization of these accelerators or many-core processors, which often requires aggressive, low-level kernel optimizations that destroy portability across systems with different processor architectures.
-To handle the performance portability challenge, the programmer must optimize several versions of the same compute kernel.
-This problem is challenging especially for domain programmers, given that they must also optimize the code to run on hundreds or thousands of compute nodes.
-In this scenario, many runtime systems have been developed to aid the programmer~\cite{legion,physics,mpiacc,mvapich2gpu}.
-However, current support for state-of-the-art accelerators is very limited, and there remain significant challenges, such as the development of programming abstractions and fine-grained scheduling mechanisms, as well as efficient communication overlap and dynamic load balancing.  
+To handle the performance portability challenge, the programmer must perform different sets of potential optimizations on the same compute kernel for different architectures.
+This problem is challenging especially for domain programmers, given that they must also optimize the communication among multiple accelerators of the same compute node as well as across nodes.
 
-To address these challenges, we present {\em RambutanAcc}, a task-based runtime for distributed-memory systems that can assist the programmer to increase performance on accelerator-based clusters with modest programming effort.
-{\em RambutanAcc} extends the programming interface of {\em Rambutan}~\cite{rambutanWebsite}, which provides an interface to construct a fine-grain, dynamic dataflow graph that unfolds as the program executes. 
-Each fine-grain task of a {\em RambutanAcc} graph is scheduled to run on a {\em worker}, which can be either a group of CPU cores, an accelerator, or a partition of an accelerator.
-\cyC{"group of accelerator cores" would be clearer than "a partition of an accelerator", which hasn't been defined yet}
-Tasks can execute as soon as their {\em true} data dependencies are satisfied, thus avoiding many types of over-synchronization present in other programming models (e.g. barrier, wait\_all, etc.).
-Our runtime handles the communication among tasks automatically -- in particular, data required by a task can be produced by other tasks running anywhere else on the system, i.e. on a CPU or accelerator on a local or remote compute node.
-The runtime transparently moves data to where the dependent task will execute, and
-handles communication in the background so that data transfer overheads can be overlapped with computation of other runnable tasks.
+This paper presents a solution that allows the programmer to explore effective optimizations for an application on a given hardware without aggresive modifications to the source code. 
+Specifically, we exploit task-based parallelism that can abstract away complicated hardware details associated with low-level accelerator architectures.
+We extend the programming interface of {\em Rambutan}~\cite{rambutanWebsite}, which provides an interface to construct a fine-grain, dynamic task dependency graph that unfolds as the program executes. 
+Tasks can execute as soon as their {\em true} data dependencies are satisfied, thus avoiding many types of over-synchronization (e.g. barrier, wait\_all, etc.) present in traditional programming models.
+
+Using our task-based code representation, the programmer can evaluate the impact of various optimizations by playing with the scheduling and communication handling policies.
+Although many runtime systems have been developed~\cite{legion,physics,mpiacc,mvapich2gpu} for scheduling tasks of a graph, current support for state-of-the-art accelerators is very limited.
+There remain significant challenges, such as fine-grained scheduling mechanisms, dynamic load balancing, and direct communication among accelerators.
+To address these challenges, we develop {\em RambutanAcc}, a task-based runtime that can scheduler task on multiple hardware levels, ranging from accelerator cores to compute nodes of a distributed-memory system.
+Each fine-grain task can be scheduled to run on a {\em worker}, which can be either a group of CPU cores, an accelerator, or a group of accelerator cores.
+%\cyC{"group of accelerator cores" would be clearer than "a partition of an accelerator", which hasn't been defined yet}
+Our runtime handles the communication among tasks automatically -- in particular, data required by a task can be produced by other tasks running anywhere else on the system.
+%, i.e. on a CPU or accelerator on a local or remote compute node.
+The programmer has a choice to select the communication path, either routing packages through the host or moving them directly among accelerators when hardware support is available.
+The runtime then transparently moves data to where the dependent task will execute, and handles communication in the background so that communication can be overlapped with computation of other runnable tasks.
 %\sout{Not only can data move, but tasks can also migrate among different memory address spaces via work stealing.
 %Specifically idle workers can find chance to steal tasks from other workers, enabling dynamic load balancing}.
 
@@ -22,19 +27,20 @@ Our programming model removes the programming burden of launching CUDA kernels a
 Each task is specified as a conventional routine parallelized across a thread team.
 %In typical CUDA code, running multiple types of tasks requires launching multiple independent kernels, with little flexibility in when tasks of different types may be executed.
 %In contrast, 
-{\em RambutanAcc} launches a single {\em persistent CUDA kernel} that can service multiple requests from a task scheduler running on the host, thus avoiding the overhead of multiple kernel launches during execution.
+{\em RambutanAcc} can be configured to launch a single {\em persistent CUDA kernel} that can service multiple requests from a task scheduler running on the host, thus avoiding the overhead of multiple kernel launches during execution.
 The persistent kernel partitions available streaming multiprocessors (SMs) of a GPU into workers, which have the flexibility to asynchronously service tasks of different types at the same time, increasing task parallelism.
 %This method provides much more flexibility to overlap communication with useful computational work.
-
-{\em RambutanAcc} is also equipped with a communication handler to service data transfer requests across nodes and between the host and GPUs.
+{\em RambutanAcc} is also equipped with a communication handler to service data transfer requests across GPUs and between the host and GPUs.
 This handler utilizes CUDA streams and works asynchronously with the persistent kernel.
+The handler can also move data directly among GPUs via direct memory access (DMA).
 %\footnote{For MIC-based workers, we use Intel's COI (co-processor offload infrastructure) to implement the on-node handler.}
 For off-node requests, {\em RambutanAcc} uses GASNet~\cite{Bonachea:2002:gasnet}, a one-sided communication library % , to implement the communication handler.
 that provides non-blocking data transfer and low-latency signaling mechanisms. % , allowing inter-process communication to be overlapped with computations efficiently.
 
-We evaluate {\em RambutanAcc} on up to 16 K80 GPUs using three HPC benchmarks: Sparse Cholesky Factorization, Communication-Avoiding Cannon's Matrix Multiplication~\cite{25Dcannon}, and a 3D Stencil algorithm.\samW{needs to be consistent with sec5... missing ML code}
-The results show that the performance improves significantly due to overlapping communication with computation.
-{\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
+We use {\em RambutanAcc} to explore suitable set of optimizations for 4 HPC benchmarks: Sparse Cholesky Factorization, a Machine Learning-based face recognition code, Communication-Avoiding Cannon's Matrix Multiplication~\cite{25Dcannon}, and a 3D Stencil algorithm.
+%\samW{needs to be consistent with sec5... missing ML code}
+The results show that the performance improves significantly and meets the performance level of our painstakingly hand-optimized code variant.
+%{\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
 In addition, for Sparse Cholesky Factorization, having multiple workers on a single GPUs allows compute throughput to be increased at low programming cost. 
 We hope this result will encourage further research to develop and tune sparse kernels for co-scheduling fine-grained tasks on GPUs.
 
