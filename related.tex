@@ -6,7 +6,7 @@ As the number of cores per accelerator increases quickly, this limitation puts t
 Recently more research has been focusing on launching a CUDA kernel on a portion of the GPU.
 In~\cite{fillNRetreat}, Wu et al. presented a technique called {\em fill and retreat}, which allows a CUDA kernel to run on a group of selected SMs.
 With this technique the programmer can efficiently bundle multiple CUDA kernels to run on a single GPU at a time.
-Abdelfattah et al. also used a similar technique to batch small CUDA kernels in a cholesky factorization program in order to improve the throughput~\cite{batchedCholesky}.
+Abdelfattah et al. also used a similar technique to batch small CUDA kernels in a Cholesky factorization program in order to improve the throughput~\cite{batchedCholesky}.
 Our solution relies on a task scheduler to factor the scheduling policy out of the application program.
 As a result, the programmer can take the benefit of fine-grained scheduling at a very small amount of programming cost.
 

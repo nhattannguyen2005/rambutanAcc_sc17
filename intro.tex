@@ -38,7 +38,7 @@ The handler can also move data directly among the GPUs via direct memory access 
 For off-node requests, {\em RambutanAcc} uses GASNet~\cite{Bonachea:2002:gasnet}, a one-sided communication library % , to implement the communication handler.
 that provides non-blocking data transfer and low-latency signaling mechanisms. % , allowing inter-process communication to be overlapped with computations efficiently.
 
-We use {\em RambutanAcc} to explore suitable set of optimizations for four HPC benchmarks: sparse cholesky factorization, Viola-Jones face recognition, communication-avoiding Cannon's matrix multiplication~\cite{25Dcannon}, and a 3D stencil solver for Laplace's equation.
+We use {\em RambutanAcc} to explore suitable set of optimizations for four HPC benchmarks: sparse Cholesky factorization, Viola-Jones face recognition, communication-avoiding Cannon's matrix multiplication~\cite{25Dcannon}, and a 3D stencil solver for Laplace's equation.
 %\samW{needs to be consistent with sec5... missing ML code}
 The results show that the performance improves significantly and meets the performance level of our painstakingly hand-optimized code variants.
 %{\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
