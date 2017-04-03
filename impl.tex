@@ -91,7 +91,7 @@ Once the kernel is launched, CUDA thread blocks find out what SM they are mapped
 Accessing this information is possible by inserting PTX code to read a special register that holds the SM ID.
 As shown in Fig.~\ref{fig:kernel}, we keep only a certain number of thread blocks per SM (this number can be set via an environment variable and the default value is 1).
 The reason is that thread blocks run until the program completes and the CUDA runtime co-runs only a limited number of thread blocks on the same SM.
-In practice we often use 2 thread blocks on an SM (if supported) to hide the DRAM latency.
+In practice we often use two thread blocks on an SM (if supported) to hide the DRAM latency.
 The alive thread blocks will be divided into workers.
 Each worker is a group of thread blocks, acting as the new CUDA grid for scheduled tasks.
 
