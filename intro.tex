@@ -32,7 +32,7 @@ The persistent kernel partitions available streaming multiprocessors (SMs) of a 
 %This method provides much more flexibility to overlap communication with useful computational work.
 {\em RambutanAcc} is also equipped with a communication handler to service data transfer requests across GPUs and between the host and GPUs.
 This handler utilizes CUDA streams and works asynchronously with the persistent kernel.
-The handler can also move data directly among GPUs via direct memory access (DMA).
+The handler can also move data directly among the GPUs via direct memory access (DMA).
 %\footnote{For MIC-based workers, we use Intel's COI (co-processor offload infrastructure) to implement the on-node handler.}
 For off-node requests, {\em RambutanAcc} uses GASNet~\cite{Bonachea:2002:gasnet}, a one-sided communication library % , to implement the communication handler.
 that provides non-blocking data transfer and low-latency signaling mechanisms. % , allowing inter-process communication to be overlapped with computations efficiently.
@@ -41,7 +41,7 @@ We use {\em RambutanAcc} to explore suitable set of optimizations for four HPC b
 %\samW{needs to be consistent with sec5... missing ML code}
 The results show that the performance improves significantly and meets the performance level of our painstakingly hand-optimized code variant.
 %{\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
-In addition, for sparse cholesky factorization, having multiple workers on a single GPUs allows compute throughput to be increased at low programming cost. 
+In addition, for sparse cholesky factorization, having multiple workers on a single GPU allows compute throughput to be increased at low programming cost. 
 We hope this result will encourage further research to develop and tune sparse kernels for co-scheduling fine-grained tasks on GPUs.
 
 The contributions of the paper are three-fold.

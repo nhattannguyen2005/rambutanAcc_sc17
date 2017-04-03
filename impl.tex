@@ -85,7 +85,7 @@ The scheduler fills up these slots while the workers keep popping tasks and exec
 To reduce synchronization overheads, we use a lock-free implementation for this single producer-multiple consumers scheme.
 
 \subsubsection{Acc worker using CUDA persistent kernel}
-Since the host worker implementation is simple, we now present the implementation of accelerator workers on GPUs.
+Since the host worker implementation is straightforward, we now present the implementation of accelerator workers on GPUs.
 A {\em RambutanAcc} program just launches a CUDA kernel to set up workers on the GPUs' SMs and execute assigned tasks.
 Once the kernel is launched, CUDA thread blocks find out what SM they are mapped to by the CUDA runtime.
 Accessing this information is possible by inserting PTX code to read a special register that holds the SM ID.

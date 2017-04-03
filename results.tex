@@ -12,12 +12,12 @@ For example, in  2.5D Cannon we use the cuBLAS's {\em dgemm} and {\em daxpy} imp
 For node level optimizations (on single and multiple GPUs of the same compute node), we use up to three K80 GPUs.
 A K80 GPU pairs two GPU devices each having 2496 CUDA cores organized into 13 SMs.
 The whole K80-based system is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
-For cluster level optimizations, we run code on K20x GPUs on Titan, each is about a half of K80 in terms of core count and memory bandwidth.
+For cluster level optimizations, we run our code on the K20x GPUs on Titan. Each K20x is about a half of K80 in terms of core count and memory bandwidth.
 We use the nvcc compiler version 7.0 and sm\_35 capability for CUDA codes and the Intel compiler for codes running on the host.
-We also run a few experiments on P100 GPUs (the newest generation named Pascal).
+We also run a few experiments on NVIDIA P100 GPUs (the newest generation named Pascal).
 Each Pascal GPU consists of 3584 cores and supports 720 GB/s memory bandwidth.
 Nvcc 8.0 and sm\_60 are used for these experiments.
-We use GASNet for communication among GPUs. 
+We use GASNet for communication among the GPUs. 
 
 
 \subsection{Scheduling tasks on SMs of a GPU}
@@ -48,7 +48,7 @@ Fig.~\ref{fig:coarseFine} shows results of sparse cholesky under two scheduling 
 It can be seen that {\em persistent kernel} outperforms the coarse-grained {\em CUDA Launch} policy.
 This can be explained as follows.
 Each CSC tile is very small (e.g. 32$\times$32), making it hard to map computations efficiently to many CUDA cores.
-Thus, it may not be possible to scale a task to all available SMs of a GPUs.
+Thus, it may not be possible to scale a task to all available SMs of a GPU.
 We observe that for many input matrices tasks run more efficiently after reducing the number of SMs per worker by a factor of 2$\times$ or 4$\times$.
 Since there are many tasks that can be runnable at a time, the scheduler can keep all SMs busy at very small overhead.
 Fig~\ref{fig:nWorkers} shows the optimal number of workers on a K80 GPU for Sparse Cholesky Factorization when the degree of sparsity of the input matrix varies.
@@ -190,19 +190,19 @@ The additional performance improvement is due to reducing scheduling overhead by
 On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equation in three dimensions.
 {\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from six nearest neighbors.
 3D stencil is a memory bandwidth bound application. 
-Thus using GPUs can boost up the performance significantly.
+Thus, using GPUs can boost up the performance significantly.
 The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
 In particular, each task is associated with a data partition with up to six ghost cells.
 A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost cells from neighboring tasks.
 
 A challenge for this code is that the communication cost is relatively significant.
-Not only does GPUs implementation introduce extra cost of transferring data among host and GPUs, it also puts more pressure on the communication by improving the computation rate due to its high memory bandwidth.
+Not only does the GPU implementation introduce extra cost of transferring data among host and the GPUs, it also puts more pressure on the communication by improving the computation rate due to its high memory bandwidth.
 Thus, it is interesting to use {\em RambutanAcc} to study the impact of hiding/lowering such communication costs.
 For this study, we implement four code variants.
 The first variant, {\em MPI-Basic} uses blocking CUDA transfers to implement the communication among host and GPU, and it uses MPI primitives for communication among hosts. 
 We port this code on Rambutan using {\em type-3} tasks, which offloads the same CUDA kernel in {\em MPI-Basic} to the whole GPU.
 However, it performs a non-blocking kernel launch with a CUDA stream given by RambutanAcc, allowing the runtime to schedule ready tasks while servicing communication for other tasks.
-Using the same task graph, we configure the communication handler of RambutanAcc with and without direct communication among GPUs, and hence the name {\em Rambutan} and {\em RambutanAcc-noDMA} respectively.
+Using the same task graph, we configure the communication handler of RambutanAcc with and without direct communication among the GPUs, and hence the name {\em Rambutan} and {\em RambutanAcc-noDMA} respectively.
 The last code variant is not a correct code, since we shut off all types of communication in {\em MPI-Basic}. 
 This variant shows the best performance we can realize.
 
@@ -215,7 +215,7 @@ This explains why RambutanAcc substantally outperforms {\em RambutanAcc-noDMA}.
 On the compute node with NVLink, the impact of communication is less significant.
 Note that the GPU kernel on P100 runs 3$\times$ as fast as the GPU in the K80 card, but {\em MPI-Basic} scales fairly well.
 This can be explained by the significant improvement in host-GPU bandwidth provided by NVLink.
-In this scenario, on two GPUs the impact of communication overlap and direct GPUs communication is not significant.
+In this scenario, on two GPUs the impact of communication overlap and direct GPU communication is not significant.
 On four GPUs, we expect {\em RambutanAcc} to outperform {\em MPI-Basic} since the communication overhead increases due to the communication among two sockets.
 However, the actual improvement is quite modest.
 After a thorough investigation, we found out that at one point in the communication handler we have to use non-pinned memory to buffer and forward data from a remote node to the GPU.
@@ -223,7 +223,8 @@ Transferring data between host and GPU using non-pinned memory requires an extra
 We hope that in the future GASNET will allow us to attach a pre-allocated pinned memory buffer as a GASNet shared memory segment.
 When this support is available, {\em RambutanAcc} should perform well on four P100 GPUs.
 Another possible way to improve the performance on these four GPUs is to connect all GPUs with NVlink instead of with the host.
-With such configuration we expect {\em RambutanAcc} to meet the ideal performance as it does on two GPUs.
+With such a configuration we expect {\em RambutanAcc} to meet the ideal performance as it does on two GPUs.
+\samW{Be careful on the previous 2 paragraphs.  There may not be enough NVLink bricks to connect 4 GPUs to a POWER8}
 
 
 
@@ -260,7 +261,7 @@ Generally, matrix multiply operations have high compute intensity.
 However, on GPUs these operations are processed more quickly than how the communication is handled.
 Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} doesn't work.
 The performance is even worse due to the overhead of over-decomposing the problem.
-However, things completely change with direct communication among GPUs.
+However, things completely change with direct communication among the GPUs.
 Communication can be reduced to a level where communication overlap can work really well.
 We can see that the performance significantly boosts up with {\em RambutanAcc 2D}.
 {\em RambutanAcc 25D} is the most interesting case.
@@ -285,7 +286,7 @@ The performance of this code variant is very close to the peak performance where
 
 %\subsubsection{Communication hiding}
 %We now extend the experiment to multiple GPUs.
-%In this experiment, we evaluate the benefit of hiding the communication overheads among GPUs.
+%In this experiment, we evaluate the benefit of hiding the communication overheads among the GPUs.
 %To this end, we configure the runtime in two modes: {\em no overlap} and {\em overlap}.
 %The former uses blocking CUDA memory copy routines to transfer data between host and GPUs while the latter uses non-blocking variants.
 %Since the fine-grained scheduler is not compatible with blocking mode (the persistent kernel runs to completion while blocking routines can't proceed until all previously submitted CUDA kernels have completed), we use the coarse-grained scheduling policy for both the blocking and non-blocking modes.
