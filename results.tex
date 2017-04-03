@@ -244,8 +244,8 @@ With such a configuration we expect {\em RambutanAcc} to meet the ideal performa
 
 \subsubsection{2.5D Cannon Matrix Multiply}
 Although sparse representations are widely used in practice, dense matrix operations also have a significant share in many scientific and engineering areas.
-As a result, we employ a dense matrix multiplication operation $C = \alpha* A * B + \beta C$ to evaluate our runtime.
-This is a compute bound application, and the GPU architecture is very well suited for the computation. 
+As a result, we employ a dense matrix multiplication operation $C = \alpha (A \cdot B) + \beta C$ to evaluate our runtime.
+This is a compute bound kernel, and the GPU architecture is very well suited for the computation. 
 There are many algorithms for the matrix multiply operation, and we use a well-known extension of the standard 2D Cannon's algorithm called {\em Communication Avoiding} or 2.5D Cannon~\cite{25Dcannon}. 
 Under the original 2D Cannon's algorithm, the available tasks are organized into a {\em T=PxP} mesh, partitioning each of the three matrices A, B, and C into blocks.
 These partitions are first aligned using a skewing operation.
@@ -253,7 +253,7 @@ The algorithm then performs P computation steps accumulating the C partition usi
 The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
 The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
 
-On a single node, we don't have enough GPU to replicate the GPU mesh of an MPI program.
+On a single node, we do not have enough GPUs to replicate the mesh of an MPI program.
 Thus, we use a 2D variant of the Cannon algorithm {\em MPI-Basic-2D}.
 To have fair comparisons, we also run the {\em RambutanAcc} variant in 2D form where there is no advantage of avoiding communication.
 This variant includes {\em RambutanAcc 2D-noDMA} and {\em RambutanAcc 2D}.
@@ -263,7 +263,7 @@ Fig.~\ref{cannon_onnode} shows the performance of these variants when the matrix
 It can be seen that the communication overhead is very high in this experiment.
 Generally, matrix multiply operations have high compute intensity.
 However, on GPUs these operations are processed more quickly than how the communication is handled.
-Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} doesn't work.
+Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} does not work.
 The performance is even worse due to the overhead of over-decomposing the problem.
 However, things completely change with direct communication among the GPUs.
 Communication can be reduced to a level where communication overlap can work really well.
@@ -293,7 +293,7 @@ The performance of this code variant is very close to the peak performance where
 %In this experiment, we evaluate the benefit of hiding the communication overheads among the GPUs.
 %To this end, we configure the runtime in two modes: {\em no overlap} and {\em overlap}.
 %The former uses blocking CUDA memory copy routines to transfer data between host and GPUs while the latter uses non-blocking variants.
-%Since the fine-grained scheduler is not compatible with blocking mode (the persistent kernel runs to completion while blocking routines can't proceed until all previously submitted CUDA kernels have completed), we use the coarse-grained scheduling policy for both the blocking and non-blocking modes.
+%Since the fine-grained scheduler is not compatible with blocking mode (the persistent kernel runs to completion while blocking routines cannot proceed until all previously submitted CUDA kernels have completed), we use the coarse-grained scheduling policy for both the blocking and non-blocking modes.
 
 %Fig.~\ref{overlap} shows results of three applications under two communication modes.
 %In this study, we do not replicate the input matrices of the 2.5D Cannon's algorithm because the communication avoiding technique may interfere with the communication overlap.
@@ -301,7 +301,7 @@ The performance of this code variant is very close to the peak performance where
 %It can be seen in Fig.~\ref{overlap} that on three applications {\em overlap} always outperforms {\em no overlap}.
 %In Cholesky, we place data on the host and stream them to GPUs to perform the compute-intensive {\em update} kernel.
 %Thus, even on one GPU, communication arises.
-%\footnote{Although we do not show results of 2.5D Cannon and 3D Stencil on one GPU, it's worth noting that computing on one GPU doesn't incur communication cost since we initially place data on the GPU.
+%\footnote{Although we do not show results of 2.5D Cannon and 3D Stencil on one GPU, it's worth noting that computing on one GPU does not incur communication cost since we initially place data on the GPU.
 %As a result, we do not observe performance improvement when running these two applications on only one GPU.}
 %On multiple GPUs, we realize notable performance improvement via overlapping communcation with computation.
 %The overall time reduction is 10\% more or less.
