@@ -259,24 +259,25 @@ To have fair comparisons, we also run the {\em RambutanAcc} variant in 2D form w
 This variant includes {\em RambutanAcc 2D-noDMA} and {\em RambutanAcc 2D}.
 To study the total impact of three optimizations (communication overlap, avoiding, and direct communication) we employ {\em RambutanAcc 2.5D}.
 
-Fig.~\ref{cannon_onnode} shows the performance of these variants when the matrix size varies.
+Figure~\ref{cannon_onnode} shows the performance of these variants as the matrix size varies.
 It can be seen that the communication overhead is very high in this experiment.
-Generally, matrix multiply operations have high compute intensity.
-However, on GPUs these operations are processed more quickly than how the communication is handled.
-Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} does not work.
+Generally, matrix multiply operations have high compute intensity;
+however, on GPUs these operations can be processed more quickly than the communication.
+Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} is not effective.
 The performance is even worse due to the overhead of over-decomposing the problem.
-However, things completely change with direct communication among the GPUs.
-Communication can be reduced to a level where communication overlap can work really well.
-We can see that the performance significantly boosts up with {\em RambutanAcc 2D}.
-{\em RambutanAcc 25D} is the most interesting case.
-This is not really the original communication avoiding technique because we use "virtualized" GPUs (via tasks) to replicate the matrix. 
-Thus, we actually realizes the benefits from two techniques.
+However, things completely change with direct communication among the GPUs, which
+reduces communication to a level where overlap becomes effective again.
+We can see that the performance is boosted significantly with {\em RambutanAcc 2D}.
+{\em RambutanAcc 2.5D} is the most interesting case because in addition to the benefit of communication-avoidance,
+% This is not really the original communication avoiding technique because
+we also use ``virtualized'' GPUs (via tasks and workers) to replicate the matrix.
+Thus, we actually realize the benefits from both techniques simultaneously.
 The performance of this code variant is very close to the peak performance where all communication is shut off.
 
 
-
 \subsection{Scheduling tasks at the cluster level}
-%\samW{is this a missing subsection? or is communication hiding supposed to be a subsubsection???}
+\samW{is this a missing subsection? or is communication hiding supposed to be a subsubsection???}
+\cyC{yeah, this looks like an extraneous subsection}
 
 
 \begin{figure}[htb]
