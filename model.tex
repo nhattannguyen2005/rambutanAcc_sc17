@@ -6,18 +6,17 @@ Our design goal is to keep the programming API as simple as possible.
 Each RambutanAcc application works on a directed acyclic graph (DAG) in which vertices are {\em tasks} (see Fig.~\ref{fig:cholesky}),
 and edges are data or control {\em dependencies}.
 {\em RambutanAcc} defines {\em task spaces} and {\em data spaces}.
-A {\em task space} encapsulates the behavior of a class of tasks.
-A {\em task} is a sequence of statements.
-{\em Tasks} are atomic, in the sense that when a task is scheduled it runs to completion.
-{\em Tasks} are created and destroyed at runtime.
-A {\em data space} encapsulates access and management of a class of data.
+A task space encapsulates the behavior of a class of tasks.
+A task is an atomic sequence of statements, in the sense that when a task is scheduled it runs to completion.
+Tasks are created and destroyed dynamically at runtime, so only the active portion of the task graph must reside in memory.
+A data space encapsulates access and management of a class of data.
 %\cyC{Prefer not to use the term "data partition"}
 % The programmer specifies task inputs and outputs, which are data partitions.
-The programmer specifies task inputs and outputs, which are named data {\em parcels}.
-Each {\em parcel} is associated with an attribute called {\em locale}, which indicates the location of the parcel (e.g. in GPU's memory).
+The programmer specifies task inputs and outputs, which are called data {\em parcels}.
+Each parcel is associated with an attribute called a {\em locale}, which indicates the location of the parcel (e.g. in GPU's memory).
 % The programmer defines an ownership function to map tasks to partitions of the data space.
-The programmer defines an ownership function to map tasks to locales.
-Tasks and data do not have to reside in the same physical place, and the runtime will automatically move required data to tasks.
+The programmer also defines an ownership function to map tasks to locales.
+If a parcel a task requires does not reside in the same locale, the runtime will automatically transfer it.
 We next describe the full process of defining a task.
 
 \begin{figure}[htb]
@@ -36,20 +35,19 @@ The second type is for studying the benefit of fine-grained scheduling on a grou
 In the Cholesky factorization graph in Fig.~\ref{fig:cholesky}, it is reasonable to define {\em Factor} and {\em Solve} with the first type since they have low compute intensity. 
 {\em Update}, on the contrary, should be defined to run on a group of accelerator cores (type 2) or on the whole accelerator (type 3).
 
-For tasks running completely on the host (type 1), the process of defining a task includes the specification of data inputs and outputs, statements that the task will execute, and action should be performed upon the completion of the task (e.g. create a new task).
-Defining inputs, outputs, and the post-completion action for tasks of type 2 and 3 are prety much the same as type 1.
-However, the execution code for these 2 types of tasks is slightly different from that of type 1.
+For tasks running completely on the host (type 1), the process of defining a task includes the specification of data inputs and outputs, statements that the task will execute, and actions that should be performed upon completion of the task (e.g. create new tasks).
+Defining inputs, outputs, and the post-completion action for tasks of type 2 and 3 are similar to type 1; however, the execution code for these two types is slightly different.
 Specifically, the task code must be multithreaded and the abstract thread hierarchy for these tasks is very deep to support a substantially larger number of cores.
 Fig.~\ref{fig:program} shows the kernel code of the {\em Update} task of sparse cholesky factorization, which is a sparse-sparse matrix multiply operation.
-Like the CUDA programming model, each task kernel is executed by many threads (called thread grid), organized into SIMD teams, each scheduled to run on a group of cores.
-Teams scheduled (normally in a pipelining fashion) on the same group of cores are called thread blocks.
-Type 3 task will invoke this kernel using a kernel launch interface (defined by hardware vendor such as NVIDIA) with many threads to occupy the whole accelerator and hide the latency from DRAM to register.
+Like the CUDA programming model, each task kernel is executed by many threads (called a thread grid), organized into SIMD teams, each scheduled to run on a group of cores.
+Teams scheduled (normally in a pipelined fashion) on the same group of cores are called thread blocks.
+Type 3 tasks will invoke this kernel using a kernel launch interface (defined by hardware vendor such as NVIDIA) with many threads occupying the whole accelerator and hiding the latency from DRAM to registers.
 For performance advantage, we expect the kernel launch to be asynchronous (though synchronous is fine for correctness).
-The asynchronous launch returns a handle (e.g. a CUDA stream handle) and RambutanAcc only executes the post-completion action once this handle indicates that the kernel code on the accelerator already completes.
-Unlike type 3, type 2 tasks don't have to spawn threads to occupy the whole accelerator.
-RambutanAcc pre-spawns persistent threads, and we need more threads than cores just to hide the DRAM latency.
-The task code will be automatically offloaded to a group of accelerator cores by RambutanAcc's task scheduler.
-No handle is needed in this case since RambutanAcc offloaded the code and it is aware of when the code finishes.
+The asynchronous launch returns a handle (e.g. a CUDA stream handle) and RambutanAcc only executes the post-completion action once this handle indicates that the kernel code on the accelerator has completed.
+Unlike type 3, type 2 tasks do not have to spawn threads to occupy the whole accelerator.
+RambutanAcc pre-spawns persistent kernels, and we utilize more threads than cores to hide the DRAM latency.
+The task code is automatically offloaded to the accelerator by RambutanAcc's task scheduler.
+No handle is needed in this case since RambutanAcc offloads the code and it is aware of when the code finishes.
 
 
 \begin{figure}[htp]
@@ -61,18 +59,18 @@ No handle is needed in this case since RambutanAcc offloaded the code and it is 
 
 \subsection{Execution model}
 We next explain how the entire task dependency graph executes.
-At the highest level, the graph is serviced by one or multiple processes, each consisting of one or multiple {\em workers}.
-As previously mentioned, these workers can be CPU cores, accelerators, or a group of accelerator cores.
+At the highest level, the graph is serviced by one or more processes, each consisting of one or more {\em workers}.
+As previously mentioned, these workers can be CPU cores, accelerators, or groups of accelerator cores.
 At the beginning, tasks that can run without any input dependencies are called {\em roots} of the graph, and they can be scheduled immediately.
-In the task graph program described in Fig.~\ref{fig:cholesky}, task {\em F(0)} is root.
-Once a {\em root} task finishes its execution, output can be produced.
-Now, through the post-completion action the task notifies the runtime about the availability of the data so the runtime can create new tasks and fetch the just produced output data to their locations.
-Note that the programmer has the flexibility to control the location of newly created task so task creation on a remote process is allowed.
-As soon as the data required by a new task have been fetched, that task can become runnable.
-Runnable tasks will be scheduled to execute by {\em RambutanAcc} {\em workers}.
-The runtime scheduler periodically checks the availability of {\em workers} to schedule tasks. 
-A {\em worker} can be configured with a private task buffer so that the scheduler can assign it new tasks even when the {\em worker} is already executing. 
-This capability allows tasks to be offloaded to {\em workers} on the accelerator at zero cost, since the time to move required data from host to accelerator can be overlapped with the execution of another task.
+In the task graph program described in Fig.~\ref{fig:cholesky}, task {\em F(0)} is the only root.
+Once a root task finishes its execution, output data parcels may be produced.
+Through the post-completion action, the task notifies the runtime about the availability of the data parcels so the runtime can create new tasks and transfer the parcels to where they are needed.
+Note that the programmer has flexibility to control the location of newly created tasks, so task creation on a remote process is allowed.
+As soon as the data required by a task has been fetched by the runtime, that task becomes runnable
+and will be scheduled to execute on a worker.
+The runtime scheduler periodically checks the availability of workers to schedule tasks.
+A worker can be configured with a private task queue so that the scheduler can assign it new tasks even when the worker is already executing.
+This capability allows tasks to be offloaded to workers on the accelerator at zero cost, since the time to move required data from host to accelerator can be overlapped with the execution of other tasks.
 
 %A notable concern when programming on accelerators is that the DRAM capacity on accelerator is often modest compared to host DRAM.
 %If this is the case, the programmer often decides to keep data on the host and stream only a portion of data to the accelerator at a time to compute before streaming the results back.
