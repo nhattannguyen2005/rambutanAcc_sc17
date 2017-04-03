@@ -102,21 +102,22 @@ At each stage, the calculations of features are accumulated and, if this accumul
 
 
 \begin{figure*}[htb]
-\begin{subfigure}[b]{0.47\textwidth}
 \centering
-\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_tida.pdf}
-\caption{A compute node with 6 Kepler GPUs (3 K80 cards) connected via a shared PCIe bus}
-\label{stencil_single_node_tida}
+\begin{subfigure}[b]{0.45\textwidth}
+\includegraphics[width=\textwidth]{figures/cannon0.pdf}
+\caption{A and B dependencies on each replication layer}
+\label{deps}
 \end{subfigure}
-\begin{subfigure}[b]{0.47\textwidth}
-\centering
-\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_summit.pdf}
-\label{stencil_single_node_summit}
-\caption{A compute node with 4 Pascal (P100) GPUs. GPUs \#1 and \#2, \#3 and \#4 are paired together via an NVlink interconnect.}
+\begin{subfigure}[b]{0.37\textwidth}
+\includegraphics[width=\textwidth]{figures/cannon1.pdf}
+\caption{Results are reduced to the original layer}
+\label{dataspace}
 \end{subfigure}
-\caption{Strong scaling study of 7-point stencil on single compute nodes. Problem size $512^3$.
-%\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}
-}
+\caption{Computing $C= \alpha A * B + \beta C$ using the 2.5D Cannon's matrix multiplication algorithm given the input matrices are already replicated and aligned. 
+The DAG partitions matrix C and the step space of the algorithm.
+Task Id is a triple where the first two numbers represent the coordinates of a C partition and the last is the step number of the algorithm. 
+Fig.~\ref{deps} shows two subsets of the graph to illustrate two types of data dependecies required to compute C.}
+\label{fig:25DCannon}
 \end{figure*}
 
 
@@ -152,6 +153,7 @@ The {\em CUDA-Hand Optimized} version runs even faster.
 The additional performance improvement is due to reducing scheduling overhead by embedding the scheduler to the application source code.
 %\samW{where did the CUDA versions of the code come from?  Did you write them all?  if not, cite source}
 
+
 \begin{figure}[htb]
 \centering
 \includegraphics[width=.47\textwidth]{figures/taskGraph.pdf}
@@ -160,40 +162,78 @@ The additional performance improvement is due to reducing scheduling overhead by
 \label{fig:taskGraph}
 \end{figure}
 
-\begin{figure*}[htb]
-\centering
-\begin{subfigure}[b]{0.45\textwidth}
-\includegraphics[width=\textwidth]{figures/cannon0.pdf}
-\caption{A and B dependencies on each replication layer}
-\label{deps}
-\end{subfigure}
-\begin{subfigure}[b]{0.37\textwidth}
-\includegraphics[width=\textwidth]{figures/cannon1.pdf}
-\caption{Results are reduced to the original layer}
-\label{dataspace}
-\end{subfigure}
-\caption{Computing $C= \alpha A * B + \beta C$ using the 2.5D Cannon's matrix multiplication algorithm given the input matrices are already replicated and aligned. 
-The DAG partitions matrix C and the step space of the algorithm.
-Task Id is a triple where the first two numbers represent the coordinates of a C partition and the last is the step number of the algorithm. 
-Fig.~\ref{deps} shows two subsets of the graph to illustrate two types of data dependecies required to compute C.}
-\label{fig:25DCannon}
-\end{figure*}
 
 \subsection{Scheduling tasks on GPUs of the same node}
 
 
+\begin{figure*}[htb]
+\begin{subfigure}[b]{0.47\textwidth}
+\centering
+\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_tida.pdf}
+\caption{A compute node with 6 Kepler GPUs (3 K80 cards) connected via a shared PCIe bus}
+\label{stencil_single_node_tida}
+\end{subfigure}
+\begin{subfigure}[b]{0.47\textwidth}
+\centering
+\includegraphics[width=0.9\textwidth]{figures/stencil_single_node_summit.pdf}
+\caption{A compute node with 4 Pascal (P100) GPUs. GPUs \#1 and \#2, \#3 and \#4 are paired together via an NVlink interconnect.}
+\label{stencil_single_node_summit}
+\end{subfigure}
+\caption{Strong scaling study of 3D stencil on single compute nodes. Problem size $512^3$.
+%\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}
+}
+\label{fig:stencil_single_nodes}
+\end{figure*}
 
 \subsubsection{3D Stencil}
 %\samW{3D stencil is an ill-defined term... is this a 7-point, constant coefficient laplacian?  Are you doing a smoother with a RHS?  are you assuming periodic BCs?  or constant(node/vertex centerd) boundaries?}
 On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equation in three dimensions.
 {\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from six nearest neighbors.
+3D stencil is a memory bandwidth bound application. 
+Thus using GPUs can boost up the performance significantly.
 The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
 In particular, each task is associated with a data partition with up to six ghost cells.
 A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost cells from neighboring tasks.
-3D stencil is a memory bandwidth bound application. 
-Thus using GPUs can boost up the performance significantly.
-It is interesting to determine if {\em RambutanAcc} can improve the performance further by  hiding communication overheads.
 
+A challenge for this code is that the communication cost is relatively significant.
+Not only does GPUs implementation introduce extra cost of transferring data among host and GPUs, it also puts more pressure on the communication by improving the computation rate due to its high memory bandwidth.
+Thus, it is interesting to use {\em RambutanAcc} to study the impact of hiding/lowering such communication costs.
+For this study, we implement 4 code variants.
+The first variant, {\em MPI-Basic} uses blocking CUDA transfers to implement the communication among host and GPU, and it uses MPI primitives for communication among hosts. 
+We port this code on Rambutan using {\em type-3} tasks, which offloads the same CUDA kernel in {\em MPI-Basic} to the whole GPU.
+However, it performs a non-blocking kernel launch with a CUDA stream given by RambutanAcc, allowing the runtime to schedule ready tasks while servicing communication for other tasks.
+Using the same task graph, we configure the communication handler of RambutanAcc with and without direct communication among GPUs, and hence the name {\em Rambutan} and {\em RambutanAcc-noDMA} respectively.
+The last code variant is not a correct code, since we shut off all types of communication in {\em MPI-Basic}. 
+This variant shows the best performance we can realize.
+
+Fig.~\ref{fig:stencil_single_nodes} shows the strong scaling performance of 4 code variants on single compute nodes, one consisting of 6 GPUs connected via a shared PCIe bus whereas the other consists of 4 Pascal GPUs split in to 2 sockets each pairing 2 GPUs with NVLink connection. 
+On the 6-GPU compute node, we can easily see that the communication has a notable impact on the scalability of {\em MPI-Basic}.
+Under this circumstance, hiding communication is always effective whether or not we have to route data through the host.
+{\em Rambutan} and {\em RambutanAcc-noDMA} run at the same rate on 2 GPUs.
+However, on 6 GPUs when we don't have enough computation to hide communication, the benefit of overlapping becomes less significant.
+This explains why RambutanAcc substantally outperforms {\em RambutanAcc-noDMA}.
+On the compute node with NVLink, the impact of communication is less significant.
+Note that the GPU kernel on P100 runs 3 times as fast as the GPU in the K80 card, but {\em MPI-Basic} scales fairly well.
+This can be explained by the significant improvement in host-GPU bandwidth provided by NVLink.
+In this scenario, on 2 GPUs the impact of communication overlap and direct GPUs communication is not significant.
+On 4 GPUs, we expect {\em RambutanAcc} to outperform {\em MPI-Basic} since the communication overhead increases due to the communication among 2 sockets.
+However, the actual improvement is quite modest.
+After a thorough investigation, we found out that at one point in the communication handler we have to use non-pinned memory to buffer and forward data from a remote node to the GPU.
+Transferring data between host and GPU using non-pinned memory requires an extra memory copy which is generally very costly.
+We hope that in the future GASNET will allow us to attach a pre-allocated pinned memory buffer as a GASNet shared memory segment.
+When this support is available, {\em RambutanAcc} should perform well on 4 P100 GPUs.
+Another possible way to improve the performance on these 4 GPUs is to connect all GPUs with NVlink instead of with the host.
+With such configuration we expect {\em RambutanAcc} to meet the ideal performance as it does on 2 GPUs.
+
+
+
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/cannon_tida.pdf}
+\caption{2.5 Cannon on two K80s (four GPU devices)}
+\label{cannon_onnode}
+\end{figure}
 
 
 
@@ -208,15 +248,25 @@ The algorithm then performs P computation steps accumulating the C partition usi
 The communication avoiding algorithm shown in Fig.~\ref{fig:25DCannon} replicates the input matrices by a factor of L using an additional task dimension.
 The algorithm broadcasts input data to layers in this dimension to compute the traditional Cannon with T/$\sqrt(L^3)$ steps then reduces the results back to the first layer.
 
+On a single node, we don't have enough GPU to replicate the GPU mesh of an MPI program.
+Thus, we use a 2D variant of the Cannon algorithm {\em MPI-Basic-2D}.
+To have fair comparisons, we also run the RambutanAcc variant in 2D form where there is no advantage of avoiding communication.
+This variant includes {\em RambutanAcc 2D-noDMA} and {\em RambutanAcc 2D}.
+To study the total impact of 3 optimizations (communication overlap, avoiding, and direct communication) we employ {\em RambutanAcc 2.5D}.
 
-
-\begin{figure}[htb]
-\centering
-\includegraphics[width=0.49\textwidth]{figures/cannon_tida.pdf}
-\caption{2.5 Cannon on two K80s (four GPU devices)}
-\label{cannon_onnode}
-\end{figure}
-
+Fig.~\ref{cannon_onnode} shows the performance of these variants when the matrix size varies.
+It can be seen that the communication overhead is very high in this experiment.
+Generally, matrix multiply operations have high compute intensity.
+However, on GPUs these operations are processed more quickly than how the communication is handled.
+Since communication dominates, the overlapping technique in {\em RambutanAcc 2D-noDMA} doesn't work.
+The performance is even worse due to the overhead of over-decomposing the problem.
+However, things completely change with direct communication among GPUs.
+Communication can be reduced to a level where communication overlap can work really well.
+We can see that the performance significantly boosts up with {\em RambutanAcc 2D}.
+{\em RambutanAcc 25D} is the most interesting case.
+This is not really the original communication avoiding technique because we use "virtualized" GPUs (via tasks) to replicate the matrix. 
+Thus, we actually realizes the benefits from 2 techniques.
+The performance of this code variant is very close to the peak performance where all communication is shut off.
 
 
 
