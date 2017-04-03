@@ -11,12 +11,13 @@ Tasks can execute as soon as their {\em true} data dependencies are satisfied, t
 Using our task-based code representation, the programmer can evaluate the impact of various optimizations by playing with the scheduling and communication handling policies.
 Although many runtime systems have been developed for scheduling tasks of a graph ~\cite{legion,physics,mpiacc,mvapich2gpu}, current support for state-of-the-art accelerators is very limited.
 There remain significant challenges, such as fine-grained scheduling, dynamic load balancing, and direct communication among accelerators.
-To address these challenges, we develop {\em RambutanAcc}, a task-based runtime that can schedule task on multiple hardware levels, ranging from accelerator cores to compute nodes of a distributed-memory system.
+To address these challenges, we develop {\em RambutanAcc}, a task-based runtime that can schedule tasks on multiple hardware levels, ranging from accelerator cores to compute nodes of a distributed-memory system.
 Each fine-grain task can be scheduled to run on a {\em worker}, which can be either a group of CPU cores, an accelerator, or a group of accelerator cores.
 %\cyC{"group of accelerator cores" would be clearer than "a partition of an accelerator", which hasn't been defined yet}
 Our runtime handles the communication among tasks automatically -- in particular, data required by a task can be produced by other tasks running anywhere else on the system.
 %, i.e. on a CPU or accelerator on a local or remote compute node.
-The programmer has a choice to select the communication path, either routing packages through the host or moving them directly among accelerators when hardware support is available.
+The programmer has a choice to select the communication path, either routing data through the host or moving them directly between accelerators when hardware support is available.
+\cyC{why not utilize direct device to device transfer when the hardware is available?  what is the benefit from giving the programmer a choice?}
 The runtime then transparently moves data to where the dependent task will execute, and handles communication in the background so that communication can be overlapped with computation of other runnable tasks.
 %\sout{Not only can data move, but tasks can also migrate among different memory address spaces via work stealing.
 %Specifically idle workers can find chance to steal tasks from other workers, enabling dynamic load balancing}.
@@ -28,7 +29,7 @@ Each task can be specified as a conventional routine parallelized across a threa
 %In typical CUDA code, running multiple types of tasks requires launching multiple independent kernels, with little flexibility in when tasks of different types may be executed.
 %In contrast, 
 {\em RambutanAcc} can be configured to launch a single {\em persistent CUDA kernel} that can service multiple requests from a task scheduler running on the host, thus avoiding the overhead of multiple kernel launches during execution.
-The persistent kernel partitions available streaming multiprocessors (SMs) of a GPU into workers, which have the flexibility to asynchronously service tasks of different types at the same time, increasing task parallelism.
+The persistent kernel partitions available streaming multiprocessors (SMs) of a GPU into separate workers, each of which have the flexibility to asynchronously service tasks of different types, increasing task parallelism.
 %This method provides much more flexibility to overlap communication with useful computational work.
 {\em RambutanAcc} is also equipped with a communication handler to service data transfer requests across GPUs and between the host and GPUs.
 This handler utilizes CUDA streams and works asynchronously with the persistent kernel.
@@ -39,7 +40,7 @@ that provides non-blocking data transfer and low-latency signaling mechanisms. %
 
 We use {\em RambutanAcc} to explore suitable set of optimizations for four HPC benchmarks: sparse cholesky factorization, Viola-Jones face recognition, communication-avoiding Cannon's matrix multiplication~\cite{25Dcannon}, and a 3D stencil solver for Laplace's equation.
 %\samW{needs to be consistent with sec5... missing ML code}
-The results show that the performance improves significantly and meets the performance level of our painstakingly hand-optimized code variant.
+The results show that the performance improves significantly and meets the performance level of our painstakingly hand-optimized code variants.
 %{\em RambutanAcc} also hides communication costs that cannot be avoided.\samW{how is this different than the previous sentence?}
 In addition, for sparse cholesky factorization, having multiple workers on a single GPU allows compute throughput to be increased at low programming cost. 
 We hope this result will encourage further research to develop and tune sparse kernels for co-scheduling fine-grained tasks on GPUs.
