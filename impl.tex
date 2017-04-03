@@ -1,5 +1,5 @@
 In this section we present the implementation details of {\em RambutanAcc}.
-At the high level, the runtime is constituted of three major modules: task management system, communication handler, and task scheduler as shown in Fig.~\ref{fig:impl}. 
+At a high level, the runtime is constituted of three major modules: task management system, communication handler, and task scheduler as shown in Fig.~\ref{fig:impl}. 
 The runtime can be configured to run on a dedicated processor core in order to keep it responsive.
 
 \begin{figure}[htb]
@@ -28,10 +28,10 @@ The runtime can be configured to run on a dedicated processor core in order to k
 \subsection{Task Management System}
 Tasks can be created as soon as input data are produced.
 The task management system listens for requests from existing tasks to create new tasks.
-A task may own data.
+%A task may own data.
 Upon the completion of a task, the task management system may write data back (if necessary) before destroying the task.
-If the task executed on accelerator while original data resides in host memory, data will be written back to host asynchronously, overlapping with other tasks' computations.
-If original data locate in a different place, the task management system asks the communication handlers to write data back.
+If the original data is located in a different locale, the communication handlers will write the data back asynchronously.
+For example, if the task executed on an accelerator while the original data resides in host memory, data will be written back to the host, overlapping with other tasks' computations.
 
 \subsection{Communication handlers}
 Once a task has been created, it will be pushed to the {\em fetching queue} by the task management system.
@@ -47,17 +47,17 @@ In the latter case, parcels can be routed through the hosts or moved directly be
 
 We employ GASNet to implement the inter-process communication.
 The process of fetching parcels from a remote node is shown in Fig.~\ref{fig:handler}.
-To fetch remote data for a task, the corresponding GASNet process issues a remote procedural call to request data from the process that holds the task owning the data (1).
+To fetch remote data for a task, the corresponding GASNet process issues an active message (remote procedure call) to request data from the process that owns the data (1).
 This procedure looks for the appropriate data at the remote node.
-If the data resides in accelerator memory, the remote procedure has also to pull the data up before sending the data (2).
+If the data resides in accelerator memory, the procedure also has to pull the data up before sending it (2).
 We employ the data transfer primitive provided by the accelerator's vendor to move data to the host.
 In particular, on compute nodes with NVIDIA GPUs, we use CUDA stream to move data between host and GPUs.
-To avoid blocking the runtime, we don't use any synchronization routine.
+To avoid blocking the runtime, we do not use any synchronization.
 Instead, the communication handler periodically tests the completion of communication activities.
-Once the memory transfer from accelerator completes (3), the data can be sent to the requester using the one-sided {\em put} operation (4).
-Once the remote GASNet process finishes the remote data transfer, it issues a response remote procedural call to push the data to the accelerator of the requester (if necessary) and notify the requester when data is available for the task.
-All these activities run asynchronously, and we use a polling mechanism to avoid blocking the runtime.
-The process of writing data back is similar to the fetching process, and it is also handled asynchronously.
+Once the memory transfer from accelerator completes (3), the data can be sent to the requester using a one-sided {\em put} operation (4).
+Once the remote GASNet process finishes the remote data transfer, it issues an active message to push the data to the accelerator of the requester (if necessary) and notify the requester when data is available for the task.
+All of these activities run asynchronously, and we use a polling mechanism to avoid blocking the runtime.
+The reverse process of writing back data produced by the task is similar to the fetching process, and it is also handled asynchronously.
 
 
 
@@ -65,28 +65,29 @@ The process of writing data back is similar to the fetching process, and it is a
 \subsubsection{Pulling parcels directly}
 When the hardware supports direct communication among accelerators (e.g. via shared PCIe, NVlink, RDMA among accelerators), the communication handler can be configured to communicate data on the direct path.
 Fig.~\ref{fig:handler_direct} shows that the communication process has been simplified significantly if direct communication is available.
-Indeed, the data owner process just needs to respond to parcel requests with the address of the parcel.
-Specifically, within a compute node if peer access among accelerators is enabled via a PCIe bus or NVLink connection, GASNet processes exchange information about a shared memory segment at the beginning of the program. Thus, they just need to transfer an offset of the parcel, which allows the recipient to pull data directly.
-In the case accelerators locate on different compute nodes, parcels can still by pass the hosts using RDMA.
+Indeed, the data owner process only needs to respond to parcel requests with the address of the parcel.
+Specifically, within a compute node if peer access among accelerators is enabled via a PCIe bus or NVLink connection, GASNet processes exchange information about a shared memory segment at the beginning of the program.
+Then they only need to transfer an offset of the parcel, which allows the recipient to pull the data directly.
+In the case of accelerators located on different compute nodes, parcels can still bypass the host memory using RDMAs.
 Specifically, data can be transferred to the NIC without being staged to host memory.
 The RDMA support in RambutanAcc is still under development though (using MPICH as the communication backend).
-In the future, we can also use GASNet as RDMA backend when it supports this feature.
+In the future, we can also use GASNet as the communication backend when it supports this feature.
 
 
 \subsection{Task Scheduler}
 Tasks become {\em ready} and pushed in the {\em ready queues} once all of their data have been fetched.
-Each GASNet process runs a task scheduler to dispatch {\em ready tasks} to workers. 
+Each GASNet process runs a task scheduler to dispatch ready tasks to workers. 
 
 \subsubsection{Task Buffer}
 To keep workers busy, the scheduler frequently checks the runnable task queue and the status of workers.
 However, the task scheduler may not be very responsive since the communication handlers also run on the same processor core.
-Thus, each worker has a task buffer with a few slots.
+Thus, each worker has a private task queue with a few slots.
 The scheduler fills up these slots while the workers keep popping tasks and executing.
 To reduce synchronization overheads, we use a lock-free implementation for this single producer-multiple consumers scheme.
 
-\subsubsection{Acc worker using CUDA persistent kernel}
+\subsubsection{Accelerator workers using CUDA persistent kernel}
 Since the host worker implementation is straightforward, we now present the implementation of accelerator workers on GPUs.
-A {\em RambutanAcc} program just launches a CUDA kernel to set up workers on the GPUs' SMs and execute assigned tasks.
+A {\em RambutanAcc} program launches a CUDA kernel to set up workers on the GPUs' SMs and execute assigned tasks.
 Once the kernel is launched, CUDA thread blocks find out what SM they are mapped to by the CUDA runtime.
 Accessing this information is possible by inserting PTX code to read a special register that holds the SM ID.
 As shown in Fig.~\ref{fig:kernel}, we keep only a certain number of thread blocks per SM (this number can be set via an environment variable and the default value is 1).
@@ -105,9 +106,8 @@ The alive thread blocks are divided into workers to execute tasks.}
 \end{figure}
 
 Now each thread block knows which worker it belongs to and where to find tasks to execute.
-Once there are ready tasks and an available worker slot, the scheduler offloads corresponding function and arguments to task buffers on the GPUs.
+Once there are ready tasks and an available worker slot, the scheduler may offload a task (a function and arguments) to task buffers on the GPUs.
 Then the scheduler picks a worker and notifies it by writing a signal to the GPU using the non-blocking copy {\em cudaMemcpyCpyAsync}.
-If the worker is busy at the time, it will read the signal  and execute the corresponding task later.
+If the worker is busy at the time, it will read the signal and execute the corresponding task later.
 Once the task finishes, the worker notifies the scheduler.
-Since a CUDA kernel cannot send data to the host, we have to use UVM (unified virtual memory).
-
+Since a CUDA kernel cannot explicitly send data to the host, we have to use UVM (unified virtual memory).
