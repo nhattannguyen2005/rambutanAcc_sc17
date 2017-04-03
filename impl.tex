@@ -9,6 +9,22 @@ The runtime can be configured to run on a dedicated processor core in order to k
 \label{fig:impl}
 \end{figure}
 
+\begin{figure*}[htb]
+\begin{subfigure}{0.4\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/handler.pdf}
+\caption{When direct communication is not available, data are asynchronously fetched through hosts}
+\label{fig:handler}
+\end{subfigure}
+\begin{subfigure}{0.4\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/handler_dma.pdf}
+\caption{The handler supports direct communication if hardware allows}
+\label{fig:handler_direct}
+\end{subfigure}
+\caption{Implementation of the inter-process communication handler}
+\end{figure*}
+
 \subsection{Task Management System}
 Tasks can be created as soon as input data are produced.
 The task management system listens for requests from existing tasks to create new tasks.
@@ -19,33 +35,43 @@ If original data locate in a different place, the task management system asks th
 
 \subsection{Communication handlers}
 Once a task has been created, it will be pushed to the {\em fetching queue} by the task management system.
-The communication handler periodically pulls tasks from this queue and fetches their input data.
+The communication handler periodically pulls tasks from this queue and fetches their input data (parcels).
 Depending on the available memory resource, a certain number of tasks in the {\em fetching queue} will be served at a time.
-{\em RambutanAcc} supports both on-node and off-node communication.
+Parcels can be either located in the same process or a remote process.
+In the former case, the handler can just pass a pointer if described by the programmer in the task's input.
+Otherwise the handler allocates a buffer, packs the data into the buffer and hands it to the task.
+In the latter case, parcels can be routed through the hosts or moved directly between accelerators if supported by the hardware.
 
-Within a single node, we use communication primitives provided by the accelerator's vendor.
-In particular, on compute nodes with NVIDIA GPUs, we use CUDA stream to move data between host and GPUs.
-On Intel's KNC-based nodes, we use COI (Coprocessor Offload Infrastructure)\samW{citation for COI??}.
-To avoid blocking the runtime, we don't use any synchronization routine.
-Instead, the communication handler periodically tests the completion of communication activities.
+\subsubsection{Routing parcels through hosts}
+%On Intel's KNC-based nodes, we use COI (Coprocessor Offload Infrastructure)\samW{citation for COI??}.
 
-We employ GASNet to implement the off-node communication handler.
-The process of fetching data from a remote node is shown in Fig.~\ref{fig:offnode}.
+We employ GASNet to implement the inter-process communication.
+The process of fetching parcels from a remote node is shown in Fig.~\ref{fig:handler}.
 To fetch remote data for a task, the corresponding GASNet process issues a remote procedural call to request data from the process that holds the task owning the data (1).
 This procedure looks for the appropriate data at the remote node.
 If the data resides in accelerator memory, the remote procedure has also to pull the data up before sending the data (2).
+We employ the data transfer primitive provided by the accelerator's vendor to move data to the host.
+In particular, on compute nodes with NVIDIA GPUs, we use CUDA stream to move data between host and GPUs.
+To avoid blocking the runtime, we don't use any synchronization routine.
+Instead, the communication handler periodically tests the completion of communication activities.
 Once the memory transfer from accelerator completes (3), the data can be sent to the requester using the one-sided {\em put} operation (4).
 Once the remote GASNet process finishes the remote data transfer, it issues a response remote procedural call to push the data to the accelerator of the requester (if necessary) and notify the requester when data is available for the task.
 All these activities run asynchronously, and we use a polling mechanism to avoid blocking the runtime.
 The process of writing data back is similar to the fetching process, and it is also handled asynchronously.
 
 
-\begin{figure}[htb]
-\centering
-\includegraphics[width=.49\textwidth]{figures/handler.pdf}
-\caption{Implementation of the off-node communication handler}
-\label{fig:offnode}
-\end{figure}
+
+
+\subsubsection{Pulling parcels directly}
+When the hardware supports direct communication among accelerators (e.g. via shared PCIe, NVlink, RDMA among accelerators), the communication handler can be configured to communicate data on the direct path.
+Fig.~\ref{fig:handler_direct} shows that the communication process has been simplified significantly if direct communication is available.
+Indeed, the data owner process just needs to respond to parcel requests with the address of the parcel.
+Specifically, within a compute node if peer access among accelerators is enabled via a PCIe bus or NVLink connection, GASNet processes exchange information about a shared memory segment at the beginning of the program. Thus, they just need to transfer an offset of the parcel, which allows the recepient to pull data directly.
+In the case accelerators locate on different compute nodes, parcels can still by pass the hosts using RDMA.
+Specifically, data can be transferred to the NIC without being staged to host memory.
+The RDMA support in RambutanAcc is still under development though (using MPICH as the communication backend).
+In the future, we can also use GASNet as RDMA backend when it supports this feature.
+
 
 \subsection{Task Scheduler}
 Tasks become {\em ready} and pushed in the {\em ready queues} once all of their data have been fetched.
@@ -65,6 +91,7 @@ Once the kernel is launched, CUDA thread blocks find out what SM they are mapped
 Accessing this information is possible by inserting PTX code to read a special register that holds the SM ID.
 As shown in Fig.~\ref{fig:kernel}, we keep only a certain number of thread blocks per SM (this number can be set via an environment variable and the default value is 1).
 The reason is that thread blocks run until the program completes and the CUDA runtime co-runs only a limited number of thread blocks on the same SM.
+In practice we often use 2 thread blocks on an SM (if supported) to hide the DRAM latency.
 The alive thread blocks will be divided into workers.
 Each worker is a group of thread blocks, acting as the new CUDA grid for scheduled tasks.
 
@@ -72,6 +99,7 @@ Each worker is a group of thread blocks, acting as the new CUDA grid for schedul
 \centering
 \includegraphics[width=.35\textwidth]{figures/kernel_init.pdf}
 \caption{The persistent kernel selects only a limited number of thread blocks per SM (green color). The default number of thread blocks per SM is 1. 
+In practice, however, we set it to 2 to hide DRAM latency.
 The alive thread blocks are divided into workers to execute tasks.}
 \label{fig:kernel}
 \end{figure}
