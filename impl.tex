@@ -9,20 +9,24 @@ The runtime can be configured to run on a dedicated processor core in order to k
 \label{fig:impl}
 \end{figure}
 
-\begin{figure*}[htb]
-\begin{subfigure}{0.4\textwidth}
+\begin{figure}[htb]
 \centering
-\includegraphics[width=\textwidth]{figures/handler.pdf}
-\caption{When direct communication is not available, data are asynchronously fetched through hosts}
+\includegraphics[width=.49\textwidth]{figures/handler.pdf}
+\caption{Asynchronous remote data movement via GASNet}
 \label{fig:handler}
-\end{subfigure}
-\begin{subfigure}{0.4\textwidth}
-\centering
-\includegraphics[width=\textwidth]{figures/handler_dma.pdf}
-\caption{The handler supports direct communication if hardware allows}
-\label{fig:handler_direct}
-\end{subfigure}
-\caption{Implementation of the inter-process communication handler}
+%\begin{subfigure}{0.4\textwidth}
+%\centering
+%\includegraphics[width=\textwidth]{figures/handler.pdf}
+%\caption{When direct communication is not available, data are asynchronously fetched through hosts}
+%\label{fig:handler}
+%\end{subfigure}
+%\begin{subfigure}{0.4\textwidth}
+%\centering
+%\includegraphics[width=\textwidth]{figures/handler_dma.pdf}
+%\caption{The handler supports direct communication if hardware allows}
+%\label{fig:handler_direct}
+%\end{subfigure}
+%\caption{Implementation of the inter-process communication handler}
 \end{figure*}
 
 \subsection{Task Management System}
@@ -61,29 +65,31 @@ The reverse process of writing back data produced by the task is similar to the 
 
 
 
-
-\subsubsection{Pulling parcels directly}
-When the hardware supports direct communication among accelerators (e.g. via shared PCIe, NVlink, RDMA among accelerators), the communication handler can be configured to communicate data on the direct path.
-Fig.~\ref{fig:handler_direct} shows that the communication process has been simplified significantly if direct communication is available.
-Indeed, the data owner process only needs to respond to parcel requests with the address of the parcel.
-Specifically, within a compute node if peer access among accelerators is enabled via a PCIe bus or NVLink connection, GASNet processes exchange information about a shared memory segment at the beginning of the program.
-Then they only need to transfer an offset of the parcel, which allows the recipient to pull the data directly.
-In the case of accelerators located on different compute nodes, parcels can still bypass the host memory using RDMAs.
-Specifically, data can be transferred to the NIC without being staged to host memory.
-The RDMA support in RambutanAcc is still under development though (using MPICH as the communication backend).
-In the future, we can also use GASNet as the communication backend when it supports this feature.
+% JohnB: removed since this is unimplemented future work. No sense in cluttering up the pre-results narrative.
+%\subsubsection{Pulling parcels directly}
+%When the hardware supports direct communication among accelerators (e.g. via shared PCIe, NVlink, RDMA among accelerators), the communication handler can be configured to communicate data on the direct path.
+%Fig.~\ref{fig:handler_direct} shows that the communication process has been simplified significantly if direct communication is available.
+%Indeed, the data owner process only needs to respond to parcel requests with the address of the parcel.
+%Specifically, within a compute node if peer access among accelerators is enabled via a PCIe bus or NVLink connection, GASNet processes exchange information about a shared memory segment at the beginning of the program.
+%Then they only need to transfer an offset of the parcel, which allows the recipient to pull the data directly.
+%In the case of accelerators located on different compute nodes, parcels can still bypass the host memory using RDMAs.
+%Specifically, data can be transferred to the NIC without being staged to host memory.
+%The RDMA support in RambutanAcc is still under development though (using MPICH as the communication backend).
+%In the future, we can also use GASNet as the communication backend when it supports this feature.
 
 
 \subsection{Task Scheduler}
-Tasks become {\em ready} and pushed in the {\em ready queues} once all of their data have been fetched.
-Each GASNet process runs a task scheduler to dispatch ready tasks to workers. 
+Tasks become {\em ready} and pushed in the host's {\em ready queue} once all of their data have been fetched.
+Each host process runs a task scheduler to dispatch ready tasks to workers. On the GPU, there are
+dedicated private task queues per SM and thread block pair. The host's scheduler is responsible
+for draining the ready queue into available slots on the finitely-sized worker queues.
 
-\subsubsection{Task Buffer}
-To keep workers busy, the scheduler frequently checks the runnable task queue and the status of workers.
-However, the task scheduler may not be very responsive since the communication handlers also run on the same processor core.
-Thus, each worker has a private task queue with a few slots.
-The scheduler fills up these slots while the workers keep popping tasks and executing.
-To reduce synchronization overheads, we use a lock-free implementation for this single producer-multiple consumers scheme.
+%\subsubsection{Task Buffer}
+%To keep workers busy, the scheduler frequently checks the runnable task queue and the status of workers.
+%However, the task scheduler may not be very responsive since the communication handlers also run on the same processor core.
+%Thus, each worker has a private task queue with a few slots.
+%The scheduler fills up these slots while the workers keep popping tasks and executing.
+%To reduce synchronization overheads, we use a lock-free implementation for this single producer-multiple consumers scheme.
 
 \subsubsection{Accelerator workers using CUDA persistent kernel}
 Since the host worker implementation is straightforward, we now present the implementation of accelerator workers on GPUs.
