@@ -1,5 +1,5 @@
 \subsection{Experimental Testbed}
-In this section, we employ RambutanAcc to study the impact of various code optimizations at different hardware levels of a GPU cluster.
+In this section, we employ {\em RambutanAcc} to study the impact of various code optimizations at different hardware levels of a GPU cluster.
 Since an application generally benefits from only a subset of these optimizations, we need more than one application.
 To this end, we take four benchmarks commonly used in science and engineering: sparse Cholesky factorization, a machine learning based face recognition code, 2.5D Cannon's Matrix Multiplication, and 3D Stencil.
 When studying optimizations on a single GPU, to have apples-to-apples comparisons we always use our own CUDA kernels instead of 3rd party implementations (e.g. cuSPARSE). 
@@ -42,7 +42,7 @@ The compute-intensive {\em update} kernel is executed on the GPU workers.
 %An interesting path to explore is the tradeoff between coarse and fine-grained scheduling policies.  
 %For sparse Cholesky, the matrix is represented by many small CSC tiles.\samW{the previous sentence repeats the one}
 %Thus, even a small problem size can result in many tasks.
-We implement two code variants, which differ from each other in the method of task execution used (refer to Section~\ref{sec:task-def} for {\em task type} descriptions).
+We implemented two code variants, which differ from each other in the method of task execution used (refer to Section~\ref{sec:task-def} for {\em task type} descriptions).
 The first code variant implements the {\em Update} phase with {\em type-3} task to launch the sparse matrix multiply kernel on the whole GPU, and hence the name {\em CUDA Launch}.
 The other code variant is called {\em persistent kernel}, since it employs {\em type-2} task, which can be scheduled on a group of SMs by the persistent kernel.
 Fig.~\ref{fig:coarseFine} shows results of sparse Cholesky under two scheduling policies.
@@ -127,10 +127,10 @@ Each CUDA thread block is responsible for a fixed number of windows, which will 
 In this paper we call this code variant {\em CUDA-Basic}.
 Since the number of instructions per window depends on the input, the impact of thread divergence is expected to be significant.
 Thus, we also employ a {\em CUDA-Static Warp Scheduling} version which allows 32 threads in a warp to share a window (and thus they perform the same number of instructions).
-We then port this code on RambutanAcc using {\em type-2} tasks, hence we call it {\em persistent kernel}.
+We then port this code on {\em RambutanAcc} using {\em type-2} tasks, hence we call it {\em persistent kernel}.
 We expect to improve the performance further by balancing the workload among these warps.
 Finally, we run a hand-optimized code variant previously developed in \cite{facedetection_dws}.
-This variant effectively embeds the task scheduler into the kernel code and has capabilities similar to RambutanAcc,
+This variant effectively embeds the task scheduler into the kernel code and has capabilities similar to {\em RambutanAcc},
 but at lower cost since the task scheduler is specialized and runs on the GPU.
 
 Fig.~\ref{faceRecognition} shows the performance of all code variants.
@@ -142,16 +142,16 @@ Since the CUDA runtime runs the 32 threads of a warp in lock-step, the diverged 
 This explains why {\em CUDA-Static Warp Scheduling} improves the performance significantly.
 However, there remains significant load imbalance among warps.
 
-With RambutanAcc, windows are distributed to workers dynamically.
+With {\em RambutanAcc}, windows are distributed to workers dynamically.
 Specifically, we configure the runtime with 26 workers, with one thread block per worker and two workers per SM.
 The scheduler running on the host keeps assigning blocks of windows to these workers.
 In order to hide the scheduling latency, we configure the task buffer of each worker with multiple slots.
 While each worker is processing its current window, the scheduler can offload other windows to the remaining slots.
 In this experiment, each block takes about 50$\mu$s to finish, whereas the offloading cost is around 10$\mu$s.
 Thus, configuring the task buffer with two slots is sufficient.
-Fig.~\ref{faceRecognition} shows that RambutanAcc outperforms {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
+Fig.~\ref{faceRecognition} shows that {\em RambutanAcc} outperforms {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
 All the performance improvement can be attributed to the capability of balancing computations among SMs of the GPU.
-The RambutanAcc version achieves X percent of the hand-optimized version at substantially less programming complexity.
+The {\em RambutanAcc} version achieves X percent of the hand-optimized version at substantially less programming complexity.
 \cyC{replace X percent above with the actual number}
 % The {\em CUDA-Hand Optimized} version runs even faster.
 The additional performance of the hand-tuned version is due to reduced overhead from embedding the scheduling logic directly into the application source code.
@@ -196,37 +196,37 @@ On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equ
 3D stencil is a memory bandwidth bound application. 
 Thus, using GPUs can boost up the performance significantly.
 The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
-In particular, each task is associated with a data partition with up to six ghost cells.
-A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost cells from neighboring tasks.
+In particular, each task is associated with a data partition with up to six ghost regions.
+A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost regions from neighboring tasks.
 
 A challenge for this code is that the communication cost is relatively significant.
 Not only does the GPU implementation introduce extra cost of transferring data among host and the GPUs, it also puts more pressure on the communication by improving the computation rate due to its high memory bandwidth.
 Thus, it is interesting to use {\em RambutanAcc} to study the impact of hiding/lowering such communication costs.
-For this study, we implement four code variants.
-The first variant, {\em MPI-Basic} uses blocking CUDA transfers to implement the communication among host and GPU, and it uses MPI primitives for communication among hosts. 
-We port this code on Rambutan using {\em type-3} tasks, which offloads the same CUDA kernel in {\em MPI-Basic} to the whole GPU.
-However, it performs a non-blocking kernel launch with a CUDA stream given by RambutanAcc, allowing the runtime to schedule ready tasks while servicing communication for other tasks.
-Using the same task graph, we configure the communication handler of RambutanAcc with and without direct communication among the GPUs, and hence the name {\em Rambutan} and {\em RambutanAcc-noDMA} respectively.
-The last code variant is not a correct code, since we shut off all types of communication in {\em MPI-Basic}. 
-This variant shows the best performance we can realize.
+For this study, we implemented four code variants.
+The first variant, {\em MPI-Basic} uses blocking CUDA transfers to communicate between the host and GPU, and it uses MPI for communication among hosts.
+We port this code to {\em RambutanAcc} using {\em type-3} tasks, which offload the same CUDA kernel in {\em MPI-Basic} to the whole GPU.
+However, it performs a non-blocking kernel launch with a CUDA stream given by {\em RambutanAcc}, allowing the runtime to schedule ready tasks while servicing communication for other tasks.
+Using the same task graph, we configure the communication handler of {\em RambutanAcc} with and without direct communication among the GPUs, and hence the names {\em RambutanAcc} and {\em RambutanAcc-noDMA}, respectively.
+The {\em Ideal} code variant shuts off all communication in {\em MPI-Basic}, and thus does not produce a correct result.
+This variant illustrates the hypothetical performance if {\em all} communication costs were hidden.
 
-Fig.~\ref{fig:stencil_single_nodes} shows the strong scaling performance of four code variants on single compute nodes, one consisting of six GPUs connected via a shared PCIe bus whereas the other consists of four Pascal GPUs split in to two sockets each pairing two GPUs with NVLink connection. 
-On the 6-GPU compute node, we can easily see that the communication has a notable impact on the scalability of {\em MPI-Basic}.
-Under this circumstance, hiding communication is always effective whether or not we have to route data through the host.
-{\em Rambutan} and {\em RambutanAcc-noDMA} run at the same rate on two GPUs.
-However, on six GPUs when we don't have enough computation to hide communication, the benefit of overlapping becomes less significant.
-This explains why RambutanAcc substantally outperforms {\em RambutanAcc-noDMA}.
+Fig.~\ref{fig:stencil_single_nodes} shows the strong scaling performance of four code variants on single compute nodes: a) consists of six Kepler GPUs connected via a shared PCIe bus, and b) consists of four Pascal GPUs split between two sockets, each connected to two GPUs with NVLink.
+On the six-GPU compute node, we can easily see that the communication has a notable impact on the scalability of {\em MPI-Basic}.
+Under this circumstance, hiding communication is always effective whether or not we route data through the host.
+{\em RambutanAcc} and {\em RambutanAcc-noDMA} run at the same rate on two GPUs.
+However, on six GPUs we no longer have enough computation to hide the communication cost of the indirect copy.
+This explains why {\em RambutanAcc} substantially outperforms {\em RambutanAcc-noDMA}.
 On the compute node with NVLink, the impact of communication is less significant.
 Note that the GPU kernel on P100 runs 3$\times$ as fast as the GPU in the K80 card, but {\em MPI-Basic} scales fairly well.
 This can be explained by the significant improvement in host-GPU bandwidth provided by NVLink.
 In this scenario, on two GPUs the impact of communication overlap and direct GPU communication is not significant.
 On four GPUs, we expect {\em RambutanAcc} to outperform {\em MPI-Basic} since the communication overhead increases due to the communication among two sockets.
 However, the actual improvement is quite modest.
-After a thorough investigation, we found out that at one point in the communication handler we have to use non-pinned memory to buffer and forward data from a remote node to the GPU.
-Transferring data between host and GPU using non-pinned memory requires an extra memory copy which is generally very costly.
-We hope that in the future GASNET will allow us to attach a pre-allocated pinned memory buffer as a GASNet shared memory segment.
+After a thorough investigation, we determined the reason is because the communication handler uses non-pinned memory to buffer and forward data from a remote node to the GPU.
+Transferring data between the host and GPU using non-pinned memory requires an extra copy which is generally very costly.
+We hope that in the future, GASNet will allow us to attach a pre-allocated pinned memory buffer as a GASNet shared memory segment.
 When this support is available, {\em RambutanAcc} should perform well on four P100 GPUs.
-Another possible way to improve the performance on these four GPUs is to connect all GPUs with NVlink instead of with the host.
+Another possible way to improve the performance on four GPUs is to directly connect all GPUs with NVlink instead of through the host.
 With such a configuration we expect {\em RambutanAcc} to meet the ideal performance as it does on two GPUs.
 \samW{Be careful on the previous 2 paragraphs.  There may not be enough NVLink bricks to connect 4 GPUs to a POWER8}
 
@@ -255,7 +255,7 @@ The algorithm broadcasts input data to layers in this dimension to compute the t
 
 On a single node, we don't have enough GPU to replicate the GPU mesh of an MPI program.
 Thus, we use a 2D variant of the Cannon algorithm {\em MPI-Basic-2D}.
-To have fair comparisons, we also run the RambutanAcc variant in 2D form where there is no advantage of avoiding communication.
+To have fair comparisons, we also run the {\em RambutanAcc} variant in 2D form where there is no advantage of avoiding communication.
 This variant includes {\em RambutanAcc 2D-noDMA} and {\em RambutanAcc 2D}.
 To study the total impact of three optimizations (communication overlap, avoiding, and direct communication) we employ {\em RambutanAcc 2.5D}.
 
