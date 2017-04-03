@@ -1,7 +1,7 @@
 Looking at system designs towards Exascale~\cite{top500}, one will not hesitate to predict that future systems will be based on more powerful compute nodes rather than more nodes~\cite{Shalf:exascaleChallenges}.  
 An inevitable consequence of this design trend is that node architecture will be more complex.
 Indeed, it is common to see traditional multi-core CPUs augmented with multiple high-end graphics cards such as NVIDIA's GPUs or Intel's first generation Xeon Phi coprocessors (KNC).
-Other accelerator architectures such as FPGA and Automata Processor (digital) and Neuromorphic Procecessor (non-digital) have been gaining more traction.
+Other accelerator architectures such as FPGA and Automata Processor (digital) and Neuromorphic Processor (non-digital) have been gaining more traction.
 Heterogeneous programming is challenging~\cite{exascaleRoadMap}, mainly because realizing high performance and scalability on accelerators is difficult.
 Even when an application performs well on accelerators, load imbalance arises since CPUs and accelerators run at different rates.
 Beside the problems above, the programmer has to handle the communication between CPUs and accelerators, e.g. via PCIe, NVLink, etc.

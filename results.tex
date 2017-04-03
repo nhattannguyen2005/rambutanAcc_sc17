@@ -48,7 +48,7 @@ Fig.~\ref{fig:coarseFine} shows results of sparse cholesky under two scheduling 
 It can be seen that {\em persistent kernel} outperforms the coarse-grained {\em CUDA Launch} policy.
 This can be explained as follows.
 Each CSC tile is very small (e.g. 32$\times$32), making it hard to map computations efficiently to many CUDA cores.
-Thus, it may not be posible to scale a task to all available SMs of a GPUs.
+Thus, it may not be possible to scale a task to all available SMs of a GPUs.
 We observe that for many input matrices tasks run more efficiently after reducing the number of SMs per worker by a factor of 2$\times$ or 4$\times$.
 Since there are many tasks that can be runnable at a time, the scheduler can keep all SMs busy at very small overhead.
 Fig~\ref{fig:nWorkers} shows the optimal number of workers on a K80 GPU for Sparse Cholesky Factorization when the degree of sparsity of the input matrix varies.
@@ -68,7 +68,7 @@ Note that we picked these 3 numbers to represent wide ranges of sparsity, and th
 \caption{If there is enough parallelism (matrix is filled with more non-zeros), increasing \#workers may increase performance}
 \label{fig:nWorkers}
 \end{subfigure}
-\caption{Left: the persistent kernel with 2 workers/GPU improves the performance. For this experiment, the matrix sparsities are low (under 30\%). Right: for matrices with higher degrees of sparsity, increasing the number of workers  may further improve the performance}
+\caption{Left: the persistent kernel with 2 workers/GPU improves the performance. For this experiment, the degrees of sparsity are low (under 30\%). Right: for matrices with higher degrees of sparsity, increasing the number of workers  may further improve the performance}
 %\samW{note left vs. right;  for left, what is the sparsity???  where does the matrix come from???}}
 \label{fig:coarseFine}
 \end{figure}
@@ -82,7 +82,7 @@ This is an important observation since sparse representation is very common in p
 %\samW{is there a citation for this code/algorithm}
 We next study the impact of dynamic task scheduling in balancing the workload among SMs of a GPU.
 For this study we use the Viola-Jones face detection kernel~\cite{facedetection1, facedetection2}, an important module in many applications such as security surveillance.
-The Viola-Jones face detection algorithm detects faces by scanning a regtangular window of pixels over the image where it looks for features of a human face. 
+The Viola-Jones face detection algorithm detects faces by scanning a rectangular window of pixels over the image where it looks for features of a human face. 
 If a window contains a significant number of these features, it is considered to be a face. 
 Since face size varies, the window is scaled a number of times and the scanning process is repeated. 
 To reduce the number of features that each window needs to check, the window passes through a number of different stages. 
@@ -112,7 +112,7 @@ At each stage, the calculations of features are accumulated and, if this accumul
 \centering
 \includegraphics[width=0.9\textwidth]{figures/stencil_single_node_summit.pdf}
 \label{stencil_single_node_summit}
-\caption{A compute node with 4 Pascal (P100) GPUs. GPUs \#1 and \#2, \#3 and \#4 are paired togethor via an NVlink interconnect.}
+\caption{A compute node with 4 Pascal (P100) GPUs. GPUs \#1 and \#2, \#3 and \#4 are paired together via an NVlink interconnect.}
 \end{subfigure}
 \caption{Strong scaling study of 7-point stencil on single compute nodes. Problem size $512^3$.
 %\samW{I suggest the x-axis be GPU devices (2,4,6).  It also makes sense for there to be a single device (no communication) data point.}
