@@ -69,7 +69,7 @@ Note that we picked these three numbers to represent wide ranges of sparsity, an
 \caption{If there is enough parallelism (matrix is filled with more non-zeros), increasing \#workers may increase performance}
 \label{fig:nWorkers}
 \end{subfigure}
-\caption{Left: the persistent kernel with two workers/GPU improves the performance of the sparse Cholesky factorization. For this experiment, the degrees of sparsity are low (under 30\%). Right: for matrices with higher degrees of sparsity, increasing the number of workers  may further improve the performance}
+\caption{Sparse Cholesky Factorization: Left: the persistent kernel with two workers/GPU improves the performance. For this experiment, the degrees of sparsity are low (under 30\%). Right: for matrices with higher degrees of sparsity, increasing the number of workers  may further improve the performance}
 %\samW{note left vs. right;  for left, what is the sparsity???  where does the matrix come from???}}
 \label{fig:coarseFine}
 \end{figure}
@@ -83,17 +83,17 @@ Using these methods, the programmer can obtain high compute throughput on GPUs w
 We next study the impact of dynamic task scheduling in balancing the workload among SMs of a GPU.
 For this study we use the Viola-Jones face detection kernel~\cite{facedetection1, facedetection2}, an important module in many applications such as security surveillance.
 The Viola-Jones face detection algorithm detects faces by scanning a rectangular window of pixels over the image where it looks for features of a human face. 
-If a window contains a significant number of these features, it is considered to be a face. 
+If a window contains a significant number of these features, it is accepted (considered to contain a face).
 Since face size varies, the window is scaled a number of times and the scanning process is repeated. 
 To reduce the number of features that each window needs to check, the window passes through a number of different stages. 
-Early stages have fewer features to check and are easier to pass whereas later stages have more features and are more selective. 
-At each stage, the calculations of features are accumulated and, if this accumulated value does not pass the threshold, the stage is failed and the current window is considered to not contain a face. 
+Early stages have fewer features to check and are easier to pass, whereas later stages have more features and are more selective. 
+At each stage, if the window's features do not exceed a threshold, the window is immediately rejected, skipping further stage processing.
 
 
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.35\textwidth]{figures/faceRecognition.pdf}
-\caption{Although the warp scheduling implemetation boosts up performance of the face detection algorithm via eliminating thread divergence, there remains substantial load imbalance among warps. The persistent kernels allows tasks to be dynamically scheduled to workers. Within each worker, task's workload is further split dynamically to warps. The performance of the persistent kernel is very close to that of the hand optimized code}
+\caption{Viola-Jones Face Recognition: Although the warp scheduling implemetation boosts up performance of the face detection algorithm via eliminating thread divergence, there remains substantial load imbalance among warps. The persistent kernels allows tasks to be dynamically scheduled to workers. Within each worker, task's workload is further split dynamically to warps. The performance of the persistent kernel is very close to that of the hand optimized code}
 %Balance the face searching\samW{what is FPS?  I assume up is good... i.e. FPS is a throughput rather than time metric}}
 \label{faceRecognition}
 \end{figure}
@@ -127,30 +127,34 @@ Each CUDA thread block is responsible for a fixed number of windows, which will 
 In this paper we call this code variant {\em CUDA-Basic}.
 Since the number of instructions per window depends on the input, the impact of thread divergence is expected to be significant.
 Thus, we also employ a {\em CUDA-Static Warp Scheduling} version which allows 32 threads in a warp to share a window (and thus they perform the same number of instructions).
-We then porting this code on RambutanAcc using {\em type-2}, hence we call it {\em persistent kernel}.
+We then port this code on RambutanAcc using {\em type-2} tasks, hence we call it {\em persistent kernel}.
 We expect to improve the performance further by balancing the workload among these warps.
 Finally, we run a hand-optimized code variant previously developed in \cite{facedetection_dws}.
-This variant effectively embeds the task scheduler into the kernel code.
-This code has all the capabilities that RambutanAcc can, but at lower cost since the task scheduler is specialized and runs on the GPU.
+This variant effectively embeds the task scheduler into the kernel code and has capabilities similar to RambutanAcc,
+but at lower cost since the task scheduler is specialized and runs on the GPU.
 
 Fig.~\ref{faceRecognition} shows the performance of all code variants.
 {\em CUDA-Basic} performs poorly as expected.
-Under this straightforward strategy, a few threads reach to late stages while most of them finish early and start with a new window since there is no chance to detect a face in their current windows.
-Note that CUDA runtime runs 32 threads of a warp in lock steps, and activities on these diverged threads must be serialized. 
+Under this na{\"i}ve strategy, a few threads progress through more feature detection stages while most threads reject their window early and start with a new window, causing thread divergence.
+%since there is no chance to detect a face in their current windows.
+Since the CUDA runtime runs the 32 threads of a warp in lock-step, the diverged threads must be serialized.
 %\samW{previous sentence is unclrear...  Are you saying the naive code has a thread divergence problem?}
 This explains why {\em CUDA-Static Warp Scheduling} improves the performance significantly.
 However, there remains significant load imbalance among warps.
+
 With RambutanAcc, windows are distributed to workers dynamically.
-Specifically, we configure the runtime with 26 workers (two workers per SM), each a CUDA thread block. 
+Specifically, we configure the runtime with 26 workers, with one thread block per worker and two workers per SM.
 The scheduler running on the host keeps assigning blocks of windows to these workers.
 In order to hide the scheduling latency, we configure the task buffer of each worker with multiple slots.
-While the worker is processing the current window block, the scheduler can offload another block to the remaining slots.
+While each worker is processing its current window, the scheduler can offload other windows to the remaining slots.
 In this experiment, each block takes about 50$\mu$s to finish, whereas the offloading cost is around 10$\mu$s.
 Thus, configuring the task buffer with two slots is sufficient.
-Fig.~\ref{faceRecognition} shows that RambutanAcc speeds up {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
-All the performance improvement can be attributed to the capability of balancing computationgs among SMs of the GPU.
-The {\em CUDA-Hand Optimized} version runs even faster.
-The additional performance improvement is due to reducing scheduling overhead by embedding the scheduler to the application source code.
+Fig.~\ref{faceRecognition} shows that RambutanAcc outperforms {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
+All the performance improvement can be attributed to the capability of balancing computations among SMs of the GPU.
+The RambutanAcc version achieves X percent of the hand-optimized version at substantially less programming complexity.
+\cyC{replace X percent above with the actual number}
+% The {\em CUDA-Hand Optimized} version runs even faster.
+The additional performance of the hand-tuned version is due to reduced overhead from embedding the scheduling logic directly into the application source code.
 %\samW{where did the CUDA versions of the code come from?  Did you write them all?  if not, cite source}
 
 
