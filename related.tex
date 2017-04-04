@@ -13,8 +13,8 @@ As a result, the programmer can take the benefit of fine-grained scheduling at a
 Multi-GPU programming is also an important support because the memory capacity of each individual GPU is very limited.
 There are MPI implementations that provide this support, e.g. MPI-ACC~\cite{mpiacc, mpiacc1} and Mvapich~\cite{mvapich2gpu}.
 However, with these tools the programmer has to explicitly move data.
-RambutanAcc provides a dataflow programming model that supports distributed-memory architectures, allowing the runtime to move data across memory address spaces transparently.
+We provide a dataflow programming model that supports distributed-memory architectures, allowing the runtime to move data across memory address spaces transparently.
 In addition, the data movement is non-blocking and independent of computations, overlapping communication with computation.
 
-{\em RambutanAcc} is a general-purpose runtime system and programming model.
+Our runtime is general-purpose.
 Thus, it supports a wide range of applications, as opposed to other domain-specific runtimes such as MAGMA~\cite{MAGMA}, Physics~\cite{physics}, and Patus~\cite{patus}.

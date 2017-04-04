@@ -90,7 +90,7 @@ for draining the ready queue into available slots on the finitely-sized worker q
 
 \subsubsection{Accelerator workers using CUDA persistent kernel}
 Since the host worker implementation is straightforward, we now present the implementation of accelerator workers on GPUs.
-A {\em RambutanAcc} program launches a CUDA kernel to set up workers on the GPUs' SMs and execute assigned tasks.
+At the beginning, the runtime launches a CUDA kernel to set up workers on the GPUs' SMs and execute assigned tasks.
 Once the kernel is launched, CUDA thread blocks find out what SM they are mapped to by the CUDA runtime.
 Accessing this information is possible by inserting PTX code to read a special register that holds the SM ID.
 As shown in Fig.~\ref{fig:kernel}, we keep only a certain number of thread blocks per SM (this number can be set via an environment variable and the default value is 1).
