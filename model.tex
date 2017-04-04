@@ -1,11 +1,11 @@
-In this section, we present the RambutanAcc's task dependency graph programming model and its associated execution model.
+In this section, we present a task dependency graph programming model and its associated execution model.
 Our design goal is to keep the programming API as simple as possible.
 
 
 \subsection{Task and Data Spaces}
-Each RambutanAcc application works on a directed acyclic graph (DAG) in which vertices are {\em tasks} (see Fig.~\ref{fig:cholesky}),
+At the high level, an application can be represented by a directed acyclic graph (DAG) in which vertices are {\em tasks} (see Fig.~\ref{fig:cholesky}),
 and edges are data or control {\em dependencies}.
-{\em RambutanAcc} defines {\em task spaces} and {\em data spaces}.
+Our programming interface defines {\em task spaces} and {\em data spaces}.
 A task space encapsulates the behavior of a class of tasks.
 A task is an atomic sequence of statements, in the sense that when a task is scheduled it runs to completion.
 Tasks are created and destroyed dynamically at runtime, so only the active portion of the task graph must reside in memory.
@@ -30,8 +30,8 @@ We next describe the full process of defining a task.
 
 \subsection{Defining a task}
 \label{sec:task-def}
-RambutanAcc supports 3 types of task: (1) tasks running completely on the host, (2) tasks running on a group of accelerator cores, and (3) tasks running on host and offload kernels to the accelerator that comes along with host.
-The first type supports computation on conventional processors (e.g. Intel's Ivy Bridge, AMD's Opteron, IBM's Power 8)  and many-core processor such as Intel's KNL.
+We support 3 types of task: (1) tasks running completely on the host, (2) tasks running on a group of accelerator cores, and (3) tasks running on host and offload kernels to the accelerator that comes along with host.
+The first type supports computation on conventional processors (e.g. Intel's Ivy Bridge, AMD's Opteron, IBM's Power 8)  and many-core processors such as Intel's KNL.
 The second type is for studying the benefit of fine-grained scheduling on a group of accelerator cores such as GPU's SM (Symmetric Multiprocessor), whereas the third type is useful when the programmer needs to retain legacy kernel code and study the communication among accelerators.
 In the Cholesky factorization graph in Fig.~\ref{fig:cholesky}, it is reasonable to define {\em Factor} and {\em Solve} with the first type since they have low compute intensity. 
 {\em Update}, on the contrary, should be defined to run on a group of accelerator cores (type 2) or on the whole accelerator (type 3).
@@ -44,11 +44,11 @@ Like the CUDA programming model, each task kernel is executed by many threads (c
 Teams scheduled (normally in a pipelined fashion) on the same group of cores are called thread blocks.
 Type 3 tasks will invoke this kernel using a kernel launch interface (defined by hardware vendor such as NVIDIA) with many threads occupying the whole accelerator and hiding the latency from DRAM to registers.
 For performance advantage, we expect the kernel launch to be asynchronous (though synchronous is fine for correctness).
-The asynchronous launch returns a handle (e.g. a CUDA stream handle) and RambutanAcc only executes the post-completion action once this handle indicates that the kernel code on the accelerator has completed.
+The asynchronous launch returns a handle (e.g. a CUDA stream handle) and the runtime only executes the post-completion action once this handle indicates that the kernel code on the accelerator has completed.
 Unlike type 3, type 2 tasks do not have to spawn threads to occupy the whole accelerator.
-RambutanAcc pre-spawns persistent kernels, and we utilize more threads than cores to hide the DRAM latency.
-The task code is automatically offloaded to the accelerator by RambutanAcc's task scheduler.
-No handle is needed in this case since RambutanAcc offloads the code and it is aware of when the code finishes.
+The runtime pre-spawns persistent kernels, and we utilize more threads than cores to hide the DRAM latency.
+The task code is automatically offloaded to the accelerator by a task scheduler.
+No handle is needed in this case since the scheduler offloads the code and it is aware of when the code finishes.
 
 
 \begin{figure}[htp]
