@@ -12,12 +12,14 @@ For example, in  2.5D Cannon we use the cuBLAS's {\tt dgemm} and {\tt daxpy} imp
 For node-level optimizations (on single and multiple GPUs of the same compute node), we use up to three K80 GPUs.
 A K80 GPU pairs two GPU devices each having 2496 CUDA cores organized into 13 SMs.
 The whole K80-based system is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
-For cluster-level optimizations, we run our code on the K20x GPUs on Titan.
-Each K20x is about a half of a K80 in terms of core count and memory bandwidth.
+%For cluster-level optimizations, we run our code on the K20x GPUs on Titan.
+%Each K20x is about a half of a K80 in terms of core count and memory bandwidth.
 We use the {\tt nvcc} compiler version 7.0 and sm\_35 capability for CUDA codes and the Intel compiler for codes running on the host.
-We also run a few experiments on NVIDIA P100 GPUs (the newest generation named Pascal).
+For experiments on multiple GPUs (on the same node and across nodes), we run experiments on NVIDIA P100 GPUs (the newest generation named Pascal) on SummitDev at Oak Ridge National Laboratory.
 Each Pascal GPU consists of 3584 cores and supports 720 GB/s memory bandwidth.
-Nvcc 8.0 and sm\_60 are used for these experiments.
+A SummitDev compute node consists of four Pascal GPUs.
+These nodes are connected by the InfiniBand interconnect.
+Nvcc 8.0 and sm\_60 are used for experiments on Pascal GPUs.
 We use GASNet for communication among the GPUs. 
 
 
@@ -159,12 +161,13 @@ The additional performance of the hand-tuned version is due to reduced overhead 
 
 \subsection{Scheduling tasks on GPUs of the same node}
 \subsubsection{3D Stencil}
+\label{subsec:3DStencil_1node}
 %\samW{3D stencil is an ill-defined term... is this a 7-point, constant coefficient laplacian?  Are you doing a smoother with a RHS?  are you assuming periodic BCs?  or constant(node/vertex centerd) boundaries?}
 On multiple GPUs we pick {\em 3D Stencil}, an iterative solver for Laplace's equation in three dimensions.
 {\em 3D Stencil} iterates over a 3D mesh, updating data elements using values from six nearest neighbors.
 3D stencil is a memory bandwidth bound application. 
 Thus, using GPUs can boost up the performance significantly.
-The DAG for this application is similar to that shown earlier in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
+The DAG for this application is similar to that shown in Fig.~\ref{fig:taskGraph}, except for the number of dimensions.
 In particular, each task is associated with a data partition with up to six ghost regions.
 A task can be run when the previous iteration on this data partition finishes and it pulls all the needed ghost regions from neighboring tasks.
 
@@ -205,7 +208,7 @@ Thus, it is interesting to use the task-based runtime to study the impact of hid
 For this study, we implemented four code variants.
 The first variant, {\em MPI-Basic} uses blocking CUDA transfers to communicate between the host and GPU, and it uses MPI for communication among hosts.
 We port this code to our runtime using {\em type-3} tasks, which offload the same CUDA kernel in {\em MPI-Basic} to the whole GPU.
-However, it performs a non-blocking kernel launch with a CUDA stream, allowing the runtime to schedule ready tasks while servicing communication for other tasks.
+However, it performs a non-blocking kernel launch with a CUDA stream given by the runtime, allowing the scheduler to manage ready tasks while servicing communication for other tasks.
 Using the same task graph, we configure the communication handler of the runtime system with and without direct communication among the GPUs, and hence the names {\em DAG} and {\em DAG-noDMA}, respectively.
 The {\em Linear} code variant shuts off all communication in {\em MPI-Basic}, and thus does not produce a correct result.
 This variant illustrates the hypothetical performance if {\em all} communication costs were hidden.
@@ -228,7 +231,7 @@ We hope that in the future, GASNet will allow us to attach a pre-allocated pinne
 When this support is available, {\em DAG} should perform well on four P100 GPUs.
 Another possible way to improve the performance on four GPUs is to directly connect all GPUs with NVlink instead of through the host.
 With such a configuration we expect {\em DAG} to meet the {\em Linear} performance as it does on two GPUs.
-\samW{Be careful on the previous 2 paragraphs.  There may not be enough NVLink bricks to connect 4 GPUs to a POWER8}
+%\samW{Be careful on the previous 2 paragraphs.  There may not be enough NVLink bricks to connect 4 GPUs to a POWER8}
 
 
 
@@ -236,7 +239,7 @@ With such a configuration we expect {\em DAG} to meet the {\em Linear} performan
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.49\textwidth]{figures/cannon_tida.pdf}
-\caption{2.5 Cannon on two K80s (four GPU devices)}
+\caption{2.5D Cannon on two K80s (four GPU devices)}
 \label{cannon_onnode}
 \end{figure}
 
@@ -256,7 +259,7 @@ The algorithm broadcasts input data to layers in this dimension to compute the t
 On a single node, we do not have enough GPUs to replicate the mesh of an MPI program.
 Thus, we use a 2D variant of the Cannon algorithm {\em MPI-Basic-2D}.
 To have fair comparisons, we also run the {\em DAG} variant in 2D form where there is no advantage of avoiding communication.
-This variant includes {\em DAG-2D-noDMA} and {\em DAG 2D}.
+This variant includes {\em DAG-2D-noDMA} and {\em DAG-2D}.
 To study the total impact of three optimizations (communication overlap, avoiding, and direct communication) we employ {\em DAG-2.5D}.
 
 Figure~\ref{cannon_onnode} shows the performance of these variants as the matrix size varies.
@@ -272,20 +275,45 @@ We can see that the performance is boosted significantly with {\em DAG-2D}.
 % This is not really the original communication avoiding technique because
 we also use ``virtualized'' GPUs (via tasks and workers) to replicate the matrix.
 Thus, we actually realize the benefits from both techniques simultaneously.
-The performance of this code variant is very close to the peak performance where all communication is shut off.
+The performance of this code variant is very close to the {\em Linear} performance where all communication is shut off.
 
 
 \subsection{Scheduling tasks at the cluster level}
-\samW{is this a missing subsection? or is communication hiding supposed to be a subsubsection???}
-\cyC{yeah, this looks like an extraneous subsection}
+In Sec.~\ref{subsec:3DStencil_1node}, communication optimization techniques (i.e. communication overlap and GPU direct access) realize modest performance improvement when the NVLink connection is available.
+We now extend the experiment in Fig.~\ref{stencil_single_node_summit} to multiple compute nodes on SummitDev.
+As previously described, a SummitDev node consists of four Pascal GPUs.
+These nodes are connected via an InfiniBand interconnect.
+We reuse 3 code variants in the previous study: {\em MPI-Basic}, {\em DAG}, and {\em Linear}. 
+In this study, we expect the communication to be increased  due to the off-node communication.
+Thus, we also develop a hand optimized code variant called {\em MPI-HandOpt}.
+Like {\em DAG}, this code also over-decomposes the data space into smaller partitions (which called {\em parcel} in {\em DAG}).
+Unlike {\em DAG}, this code statically schedules the CUDA kernel launch and the communication on ghost cells.
+Specifically, after launching a non-blocking kernel to update data elements in a partition (let's say A), the code handles communication for another partition B.
+When the CUDA kernel and data communication both complete, the code launches kernel on partition B and services communication for partition A.
+%\samW{is this a missing subsection? or is communication hiding supposed to be a subsubsection???}
+%\cyC{yeah, this looks like an extraneous subsection}
 
 
 \begin{figure}[htb]
 \centering
 \includegraphics[width=0.49\textwidth]{figures/stencil_multiple_nodes_summit.pdf}
-\caption{Stencil on multiple nodes of Summit}
-\label{stencil_multiple_nodes}
+\caption{Strong scaling results of 3D-Stencil on multiple nodes of SummitDev. Problem size is fixed at 1024x1024x2048.}
+\label{fig:stencil_multiple_nodes}
 \end{figure}
+
+
+Fig.~\ref{fig:stencil_multiple_nodes} shows the performance of all code variants.
+As expected, we observe higher impact of communication on the performance.
+In this study, we do strong scaling with 1D decomposition.
+Thus, as the number of GPUs increases the amount of communication data remains the same while the number of Flops computed on each GPU decreases.
+{\em DAG} and {\em MPI-HandOpt} can tolerate this relative increase in communication overhead via overlapping both host-host and host-GPU communication with computation.
+On 8 GPUs, these code variants meet the {\em Linear} performance.
+On 16 and 32 GPUs, although the amount of computation is not sufficient to hide all communication, the performance improvement remains significant.
+Compared to {\em MPI-HandOpt}, {\em DAG} is slightly slower.
+The performance gap can be explained by the scheduling overhead, which increases when tasks become smaller.
+In real-world scientific problems, we expect tasks to be much larger since each data element is associated with multiple physical variables. 
+Under this scenario, we expect the performance gap to be small as it is on 8 GPUs in Fig.~\ref{fig:stencil_multiple_nodes}.
+
 
 
 
