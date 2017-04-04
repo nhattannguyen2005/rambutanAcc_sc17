@@ -14,7 +14,7 @@ A K80 GPU pairs two GPU devices each having 2496 CUDA cores organized into 13 SM
 The whole K80-based system is equipped with 24GB DRAM with up to 480 GB/s memory bandwidth.
 %For cluster-level optimizations, we run our code on the K20x GPUs on Titan.
 %Each K20x is about a half of a K80 in terms of core count and memory bandwidth.
-We use the {\tt nvcc} compiler version 7.0 and sm\_35 capability for CUDA codes and the Intel compiler for codes running on the host.
+We use the {\tt nvcc} compiler version 7.0 and sm\_35 capability for CUDA codes and the gcc compiler for codes running on the host.
 For experiments on multiple GPUs (on the same node and across nodes), we run experiments on NVIDIA P100 GPUs (the newest generation named Pascal) on SummitDev at Oak Ridge National Laboratory.
 Each Pascal GPU consists of 3584 cores and supports 720 GB/s memory bandwidth.
 A SummitDev compute node consists of four Pascal GPUs.
@@ -144,16 +144,16 @@ Since the CUDA runtime runs the 32 threads of a warp in lock-step, the diverged 
 This explains why {\em CUDA-Static Warp Scheduling} improves the performance significantly.
 However, there remains significant load imbalance among warps.
 
-With {\em DAG}, windows are distributed to workers dynamically.
+With {\em persistent kernel}, windows are distributed to workers dynamically.
 Specifically, we configure the runtime with 26 workers, with one thread block per worker and two workers per SM.
 The scheduler running on the host keeps assigning blocks of windows to these workers.
 In order to hide the scheduling latency, we configure the task buffer of each worker with multiple slots.
 While each worker is processing its current window, the scheduler can offload other windows to the remaining slots.
 In this experiment, each block takes about 50$\mu$s to finish, whereas the offloading cost is around 10$\mu$s.
 Thus, configuring the task buffer with two slots is sufficient.
-Fig.~\ref{faceRecognition} shows that {\em DAG} outperforms {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
+Fig.~\ref{faceRecognition} shows that {\em persistent kernel} outperforms {\em CUDA-Static Warp Scheduling} by 1.35$\times$.
 All the performance improvement can be attributed to the capability of balancing computations among SMs of the GPU.
-The {\em DAG} version achieves 90 percent of the hand-optimized version at substantially less programming complexity.
+The {\em persistent kernel} version achieves 90 percent of the hand-optimized version at substantially less programming complexity.
 %\cyC{replace X percent above with the actual number}
 % The {\em CUDA-Hand Optimized} version runs even faster.
 The additional performance of the hand-tuned version is due to reduced overhead from embedding the scheduling logic directly into the application source code.
